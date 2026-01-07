@@ -12,7 +12,7 @@ const defaultState = {
       id: "u_admin",
       name: "Administrador",
       username: "admin",
-      password: "admin123",
+      password: "Sami123+",
       role: "admin",
     },
   ],
