@@ -518,15 +518,15 @@ function isSyncEnabled() {
 }
 
 async function apiRequest(action, payload) {
+  const body = new URLSearchParams({
+    token: CONFIG.appsScriptToken,
+    sheetId: CONFIG.sheetId,
+    action,
+    payload: JSON.stringify(payload ?? {}),
+  });
   const response = await fetch(CONFIG.appsScriptUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token: CONFIG.appsScriptToken,
-      sheetId: CONFIG.sheetId,
-      action,
-      payload,
-    }),
+    body,
   });
 
   if (!response.ok) {
