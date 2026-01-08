@@ -1,8 +1,8 @@
 const CONFIG = {
   sheetId: "1tLdiGfhlSR0jsXT89jk-dDGfhci-Y3IAiECoR2g5RCo",
   driveFolderId: "1Q7mcMtEQoccD5gfux4TXNi9zY9qnIiXf",
-  appsScriptUrl: "",
-  appsScriptToken: "",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbyLadJHX4HcnS6uDYP27btoPgFjqih8qLXgcV8okoaW_g7dtuL9rsRoSP3jsrT_UI_5SA/exec",
+  appsScriptToken: "Fondo-2026!X9k2$",
 };
 
 const STORAGE_KEY = "gastos-ingenieria-state";
