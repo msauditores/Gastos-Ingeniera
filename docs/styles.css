@@ -396,6 +396,7 @@ textarea {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
   }
 
   .nav {
@@ -416,5 +417,50 @@ textarea {
   .main__header {
     flex-direction: column;
     align-items: flex-start;
+
+  .header__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sidebar {
+    padding: 20px;
+    align-items: stretch;
+  }
+
+  .nav {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .main {
+    padding: 20px 16px 40px;
+  }
+
+  .nav {
+    grid-template-columns: 1fr;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .button {
+    width: 100%;
+    justify-content: center;
+  }
   }
 }
