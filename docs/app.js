@@ -19,6 +19,7 @@ const defaultState = {
   clients: [],
   projects: [],
   expenses: [],
+  currentView: "caja",
 };
 
 const state = loadState();
@@ -40,6 +41,15 @@ const expenseWarning = document.getElementById("expense-warning");
 const expenseMessage = document.getElementById("expense-message");
 const expenseTable = document.getElementById("expense-table");
 const adminSection = document.getElementById("admin-section");
+const expenseSheet = document.getElementById("expense-sheet");
+const fabButton = document.getElementById("fab-button");
+const appTitle = document.getElementById("app-title");
+const menuToggle = document.getElementById("menu-toggle");
+const drawer = document.getElementById("drawer");
+const bottomNav = document.getElementById("bottom-nav");
+const bottomNavItems = document.querySelectorAll(".bottom-nav__item");
+const drawerNavItems = document.querySelectorAll(".drawer__item[data-view]");
+const views = document.querySelectorAll(".view");
 
 const userForm = document.getElementById("user-form");
 const userMessage = document.getElementById("user-message");
@@ -87,6 +97,9 @@ function updateView() {
   const isLoggedIn = Boolean(state.currentUser);
   loginSection.classList.toggle("hidden", isLoggedIn);
   appSection.classList.toggle("hidden", !isLoggedIn);
+  drawer.classList.toggle("hidden", !isLoggedIn);
+  fabButton.classList.toggle("hidden", !isLoggedIn);
+  bottomNav.classList.toggle("hidden", !isLoggedIn);
 
   if (!isLoggedIn) {
     return;
@@ -99,6 +112,38 @@ function updateView() {
   renderBalances();
   renderExpenses();
   updateExpenseAvailability();
+  setActiveView(state.currentView || "caja");
+}
+
+function setActiveView(viewName) {
+  state.currentView = viewName;
+  saveState();
+
+  views.forEach((view) => {
+    view.classList.toggle("is-active", view.dataset.view === viewName);
+  });
+
+  bottomNavItems.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === viewName);
+  });
+
+  drawerNavItems.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === viewName);
+  });
+
+  const titleMap = {
+    caja: "Caja menor",
+    egresos: "Egresos",
+    ingresos: "Usuarios",
+    usuarios: "Usuarios",
+  };
+  appTitle.textContent = titleMap[viewName] || "Gastos Ingeniería";
+
+  const showFab = viewName === "egresos";
+  fabButton.classList.toggle("hidden", !showFab);
+  if (!showFab) {
+    expenseSheet.classList.remove("is-visible");
+  }
 }
 
 function renderOptions() {
@@ -145,10 +190,18 @@ function renderBalances() {
   }
   state.projects.forEach((project) => {
     const remaining = calculateProjectBalance(project.id);
-    const badge = document.createElement("div");
-    badge.className = "badge";
-    badge.textContent = `${project.clientName} · ${project.name} (${project.city}) · Saldo $${remaining.toLocaleString()}`;
-    balancesEl.append(badge);
+    const status = remaining > 0 ? "Abierta" : "Cerrada";
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-item__header">
+        <span>${project.clientName}</span>
+        <span class="status">${status}</span>
+      </div>
+      <div class="list-item__meta">$${remaining.toLocaleString()}</div>
+      <div class="list-item__meta">${project.name} · ${project.city}</div>
+    `;
+    balancesEl.append(item);
   });
 }
 
@@ -175,36 +228,24 @@ function renderExpenses() {
   const rows = [...state.expenses]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .map((expense) => {
-      return `<tr>
-          <td>${expense.date}</td>
-          <td>${expense.clientName}</td>
-          <td>${expense.projectName}</td>
-          <td>${expense.category}</td>
-          <td>${expense.description}</td>
-          <td>$${expense.amount.toLocaleString()}</td>
-          <td>${expense.receiptName}</td>
-        </tr>`;
+      return `
+        <div class="list-item">
+          <div class="list-item__header">
+            <span>${expense.category}</span>
+            <span>$${expense.amount.toLocaleString()}</span>
+          </div>
+          <div class="list-item__meta">${expense.date} · ${expense.projectName}</div>
+          <div class="list-item__meta">${expense.clientName} · ${expense.description}</div>
+        </div>
+      `;
     })
     .join("");
 
-  expenseTable.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Cliente</th>
-          <th>Proyecto</th>
-          <th>Categoría</th>
-          <th>Descripción</th>
-          <th>Valor</th>
-          <th>Comprobante</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-  `;
+  expenseTable.innerHTML = rows;
+}
+
+function toggleDrawer() {
+  drawer.classList.toggle("is-visible");
 }
 
 loginForm.addEventListener("submit", (event) => {
@@ -229,6 +270,26 @@ logoutButton.addEventListener("click", () => {
   state.currentUser = null;
   saveState();
   updateView();
+});
+
+bottomNavItems.forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveView(button.dataset.view);
+  });
+});
+
+drawerNavItems.forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveView(button.dataset.view);
+  });
+});
+
+menuToggle.addEventListener("click", () => {
+  toggleDrawer();
+});
+
+fabButton.addEventListener("click", () => {
+  expenseSheet.classList.toggle("is-visible");
 });
 
 expenseClient.addEventListener("change", () => {
