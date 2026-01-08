@@ -5,178 +5,215 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gastos Ingeniería</title>
     <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
   </head>
   <body>
-    <div class="page">
-      <header class="hero">
-        <div class="hero__branding">
+    <div class="app-shell">
+      <aside class="drawer" id="drawer">
+        <div class="drawer__header">
           <img
             src="https://drive.google.com/uc?export=view&id=1S9ph0kU_u1pwY7J5efqoFY5TMFx7AXRa"
             alt="Logo Gastos Ingeniería"
-            class="hero__logo"
+            class="drawer__logo"
           />
           <div>
-            <p class="eyebrow">Panel financiero</p>
-            <h1>Gastos Ingeniería</h1>
-            <p class="subtitle">
-              Control de cajas por cliente, proyecto y ciudad con registros consecutivos.
-            </p>
+            <p class="drawer__title">Gastos Ingeniería</p>
+            <p class="drawer__subtitle" id="user-summary"></p>
           </div>
         </div>
-        <div class="hero__meta">
-          <div>
-            <span class="label">Sheet ID</span>
-            <p id="sheet-id"></p>
-          </div>
-          <div>
-            <span class="label">Carpeta Drive</span>
-            <p id="drive-folder"></p>
-          </div>
-        </div>
-      </header>
-
-      <main>
-        <section class="card" id="login-section">
-          <div class="card__header">
-            <h2>Ingreso</h2>
-            <p>Accede con tu usuario y contraseña.</p>
-          </div>
-          <form id="login-form" class="form">
-            <label>
-              Usuario
-              <input type="text" id="login-username" required />
-            </label>
-            <label>
-              Contraseña
-              <input type="password" id="login-password" required />
-            </label>
-            <button type="submit" class="button">Entrar</button>
-            <p class="form__helper" id="login-message"></p>
-          </form>
-        </section>
-
-        <section class="card hidden" id="app-section">
-          <div class="card__header card__header--row">
+        <nav class="drawer__nav">
+          <button class="drawer__item is-active" data-view="caja">Clientes/Proyecto</button>
+          <button class="drawer__item" data-view="ingresos">Usuarios</button>
+          <button class="drawer__item">About</button>
+          <button class="drawer__item">Feedback</button>
+          <button class="drawer__item">Share</button>
+        </nav>
+        <div class="drawer__footer">
+          <button class="drawer__logout" id="logout-button">Log Out</button>
+          <div class="drawer__meta">
             <div>
-              <h2>Resumen operativo</h2>
-              <p id="user-summary"></p>
+              <span class="label">Sheet ID</span>
+              <p id="sheet-id"></p>
             </div>
-            <button class="button button--ghost" id="logout-button">Salir</button>
-          </div>
-
-          <div class="grid">
-            <section class="panel">
-              <h3>Estado de cajas</h3>
-              <div id="balances" class="stack"></div>
-            </section>
-            <section class="panel">
-              <h3>Registro de egresos</h3>
-              <form id="expense-form" class="form">
-                <label>
-                  Cliente
-                  <select id="expense-client" required></select>
-                </label>
-                <label>
-                  Proyecto (ID interno)
-                  <select id="expense-project" required></select>
-                </label>
-                <label>
-                  Ciudad
-                  <input type="text" id="expense-city" readonly />
-                </label>
-                <label>
-                  Fecha
-                  <input type="date" id="expense-date" required />
-                </label>
-                <label>
-                  Categoría
-                  <input type="text" id="expense-category" placeholder="Ej: Transporte" required />
-                </label>
-                <label>
-                  Descripción
-                  <textarea id="expense-description" rows="3" required></textarea>
-                </label>
-                <label>
-                  Valor del egreso
-                  <input type="number" id="expense-amount" min="1" required />
-                </label>
-                <label>
-                  Comprobante (foto)
-                  <input type="file" id="expense-receipt" accept="image/*" required />
-                </label>
-                <div class="notice" id="expense-warning"></div>
-                <button type="submit" class="button">Registrar egreso</button>
-                <p class="form__helper" id="expense-message"></p>
-              </form>
-            </section>
-          </div>
-
-          <section class="panel" id="admin-section">
-            <h3>Administración</h3>
-            <div class="grid grid--three">
-              <form id="user-form" class="form">
-                <h4>Crear usuario</h4>
-                <label>
-                  Nombre
-                  <input type="text" id="user-name" required />
-                </label>
-                <label>
-                  Usuario
-                  <input type="text" id="user-username" required />
-                </label>
-                <label>
-                  Contraseña
-                  <input type="password" id="user-password" required />
-                </label>
-                <label>
-                  Rol
-                  <select id="user-role" required>
-                    <option value="admin">Administrador</option>
-                    <option value="empleado">Empleado</option>
-                  </select>
-                </label>
-                <button type="submit" class="button">Guardar usuario</button>
-                <p class="form__helper" id="user-message"></p>
-              </form>
-              <form id="client-form" class="form">
-                <h4>Crear cliente</h4>
-                <label>
-                  Nombre del cliente
-                  <input type="text" id="client-name" required />
-                </label>
-                <label>
-                  Ciudad
-                  <input type="text" id="client-city" required />
-                </label>
-                <button type="submit" class="button">Guardar cliente</button>
-                <p class="form__helper" id="client-message"></p>
-              </form>
-              <form id="project-form" class="form">
-                <h4>Crear proyecto / caja</h4>
-                <label>
-                  Cliente
-                  <select id="project-client" required></select>
-                </label>
-                <label>
-                  Proyecto (ID interno)
-                  <input type="text" id="project-name" required />
-                </label>
-                <label>
-                  Base inicial
-                  <input type="number" id="project-base" min="1" required />
-                </label>
-                <button type="submit" class="button">Guardar proyecto</button>
-                <p class="form__helper" id="project-message"></p>
-              </form>
+            <div>
+              <span class="label">Carpeta Drive</span>
+              <p id="drive-folder"></p>
             </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="phone">
+        <header class="app-bar">
+          <button class="icon-button" id="menu-toggle" aria-label="Abrir menú">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div class="app-bar__branding">
+            <img
+              src="https://drive.google.com/uc?export=view&id=1S9ph0kU_u1pwY7J5efqoFY5TMFx7AXRa"
+              alt="Logo"
+              class="app-bar__logo"
+            />
+            <h1 id="app-title">Caja menor</h1>
+          </div>
+          <div class="app-bar__actions">
+            <button class="icon-button" aria-label="Buscar">🔍</button>
+            <button class="icon-button" aria-label="Seleccionar">✔️</button>
+            <button class="icon-button" aria-label="Sincronizar">⟳</button>
+          </div>
+        </header>
+
+        <main class="screen">
+          <section class="card" id="login-section">
+            <div class="card__header">
+              <h2>Ingreso</h2>
+              <p>Accede con tu usuario y contraseña.</p>
+            </div>
+            <form id="login-form" class="form">
+              <label>
+                Usuario
+                <input type="text" id="login-username" required />
+              </label>
+              <label>
+                Contraseña
+                <input type="password" id="login-password" required />
+              </label>
+              <button type="submit" class="button">Entrar</button>
+              <p class="form__helper" id="login-message"></p>
+            </form>
           </section>
 
-          <section class="panel">
-            <h3>Registros recientes</h3>
-            <div class="table" id="expense-table"></div>
+          <section class="app" id="app-section">
+            <div class="view is-active" data-view="caja">
+              <div class="section-title">Caja menor</div>
+              <div id="balances" class="list"></div>
+            </div>
+
+            <div class="view" data-view="egresos">
+              <div class="section-title">Egresos</div>
+              <div id="expense-table" class="list"></div>
+              <div class="sheet" id="expense-sheet">
+                <form id="expense-form" class="form">
+                  <label>
+                    Cliente
+                    <select id="expense-client" required></select>
+                  </label>
+                  <label>
+                    Proyecto (ID interno)
+                    <select id="expense-project" required></select>
+                  </label>
+                  <label>
+                    Ciudad
+                    <input type="text" id="expense-city" readonly />
+                  </label>
+                  <label>
+                    Fecha
+                    <input type="date" id="expense-date" required />
+                  </label>
+                  <label>
+                    Categoría
+                    <input type="text" id="expense-category" placeholder="Ej: Transporte" required />
+                  </label>
+                  <label>
+                    Descripción
+                    <textarea id="expense-description" rows="3" required></textarea>
+                  </label>
+                  <label>
+                    Valor del egreso
+                    <input type="number" id="expense-amount" min="1" required />
+                  </label>
+                  <label>
+                    Comprobante (foto)
+                    <input type="file" id="expense-receipt" accept="image/*" required />
+                  </label>
+                  <div class="notice" id="expense-warning"></div>
+                  <button type="submit" class="button">Registrar egreso</button>
+                  <p class="form__helper" id="expense-message"></p>
+                </form>
+              </div>
+            </div>
+
+            <div class="view" data-view="ingresos" id="admin-section">
+              <div class="section-title">Administración</div>
+              <div class="card-grid">
+                <form id="user-form" class="form card">
+                  <h4>Crear usuario</h4>
+                  <label>
+                    Nombre
+                    <input type="text" id="user-name" required />
+                  </label>
+                  <label>
+                    Usuario
+                    <input type="text" id="user-username" required />
+                  </label>
+                  <label>
+                    Contraseña
+                    <input type="password" id="user-password" required />
+                  </label>
+                  <label>
+                    Rol
+                    <select id="user-role" required>
+                      <option value="admin">Administrador</option>
+                      <option value="empleado">Empleado</option>
+                    </select>
+                  </label>
+                  <button type="submit" class="button">Guardar usuario</button>
+                  <p class="form__helper" id="user-message"></p>
+                </form>
+                <form id="client-form" class="form card">
+                  <h4>Crear cliente</h4>
+                  <label>
+                    Nombre del cliente
+                    <input type="text" id="client-name" required />
+                  </label>
+                  <label>
+                    Ciudad
+                    <input type="text" id="client-city" required />
+                  </label>
+                  <button type="submit" class="button">Guardar cliente</button>
+                  <p class="form__helper" id="client-message"></p>
+                </form>
+                <form id="project-form" class="form card">
+                  <h4>Crear proyecto / caja</h4>
+                  <label>
+                    Cliente
+                    <select id="project-client" required></select>
+                  </label>
+                  <label>
+                    Proyecto (ID interno)
+                    <input type="text" id="project-name" required />
+                  </label>
+                  <label>
+                    Base inicial
+                    <input type="number" id="project-base" min="1" required />
+                  </label>
+                  <button type="submit" class="button">Guardar proyecto</button>
+                  <p class="form__helper" id="project-message"></p>
+                </form>
+              </div>
+            </div>
           </section>
-        </section>
-      </main>
+        </main>
+
+        <button class="fab" id="fab-button" aria-label="Nuevo egreso">+</button>
+
+        <nav class="bottom-nav" id="bottom-nav">
+          <button class="bottom-nav__item" data-view="ingresos">
+            <span>Ingresos</span>
+          </button>
+          <button class="bottom-nav__item" data-view="egresos">
+            <span>Egresos</span>
+          </button>
+          <button class="bottom-nav__item is-active" data-view="caja">
+            <span>Caja menor</span>
+          </button>
+        </nav>
+      </div>
     </div>
 
     <script src="app.js"></script>
