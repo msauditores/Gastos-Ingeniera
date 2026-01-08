@@ -225,7 +225,11 @@
                 </label>
                 <label>
                   Categoría
-                  <input type="text" id="expense-category" placeholder="Ej: Transporte" required />
+                  <select id="expense-category" required></select>
+                </label>
+                <label>
+                  Tipo de soporte
+                  <select id="expense-support" required></select>
                 </label>
                 <label>
                   Descripción
@@ -246,7 +250,7 @@
                 <button type="submit" class="button">Registrar egreso</button>
                 <p class="form__helper" id="expense-message"></p>
                 <p class="form__helper">
-                  Recuerda subir la foto a la carpeta de Drive y usar el mismo nombre en el registro.
+                  Si la sincronización está activa, el soporte se guardará automáticamente en Drive.
                 </p>
               </form>
 
