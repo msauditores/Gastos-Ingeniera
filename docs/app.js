@@ -1,9 +1,8 @@
 const CONFIG = {
   sheetId: "1tLdiGfhlSR0jsXT89jk-dDGfhci-Y3IAiECoR2g5RCo",
   driveFolderId: "1Q7mcMtEQoccD5gfux4TXNi9zY9qnIiXf",
+  appsScriptUrl: "",
 };
-
-const STORAGE_KEY = "gastos_ingenieria_state";
 
 const defaultState = {
   currentUser: null,
@@ -22,10 +21,11 @@ const defaultState = {
   currentView: "caja",
 };
 
-const state = loadState();
+let state = structuredClone(defaultState);
 
 const sheetIdEl = document.getElementById("sheet-id");
 const driveFolderEl = document.getElementById("drive-folder");
+const sheetStatusEl = document.getElementById("sheet-status");
 const loginSection = document.getElementById("login-section");
 const appSection = document.getElementById("app-section");
 const loginForm = document.getElementById("login-form");
@@ -46,6 +46,7 @@ const fabButton = document.getElementById("fab-button");
 const appTitle = document.getElementById("app-title");
 const menuToggle = document.getElementById("menu-toggle");
 const drawer = document.getElementById("drawer");
+const drawerOverlay = document.getElementById("drawer-overlay");
 const bottomNav = document.getElementById("bottom-nav");
 const bottomNavItems = document.querySelectorAll(".bottom-nav__item");
 const drawerNavItems = document.querySelectorAll(".drawer__item[data-view]");
@@ -72,25 +73,50 @@ folderLink.className = "link";
 
 driveFolderEl.append(folderLink);
 
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
+function getSheetStatusLabel() {
+  return CONFIG.appsScriptUrl ? "Conectado a Google Sheets" : "Falta configurar Apps Script";
+}
+
+async function loadStateFromSheet() {
+  if (!CONFIG.appsScriptUrl) {
     return structuredClone(defaultState);
   }
   try {
-    const parsed = JSON.parse(raw);
+    const response = await fetch(
+      `${CONFIG.appsScriptUrl}?action=read&sheetId=${encodeURIComponent(CONFIG.sheetId)}`,
+    );
+    if (!response.ok) {
+      throw new Error("No se pudo obtener información desde Sheets.");
+    }
+    const data = await response.json();
     return {
       ...structuredClone(defaultState),
-      ...parsed,
+      ...data,
     };
   } catch (error) {
-    console.error("No se pudo cargar el estado", error);
+    console.error("Error cargando desde Sheets", error);
     return structuredClone(defaultState);
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function saveStateToSheet() {
+  if (!CONFIG.appsScriptUrl) {
+    console.warn("Apps Script no configurado. No se guardan cambios.");
+    return;
+  }
+  try {
+    await fetch(CONFIG.appsScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "write",
+        sheetId: CONFIG.sheetId,
+        state,
+      }),
+    });
+  } catch (error) {
+    console.error("Error guardando en Sheets", error);
+  }
 }
 
 function updateView() {
@@ -105,6 +131,7 @@ function updateView() {
     return;
   }
 
+  sheetStatusEl.textContent = getSheetStatusLabel();
   userSummary.textContent = `${state.currentUser.name} · Rol ${state.currentUser.role}`;
   adminSection.classList.toggle("hidden", state.currentUser.role !== "admin");
 
@@ -117,7 +144,7 @@ function updateView() {
 
 function setActiveView(viewName) {
   state.currentView = viewName;
-  saveState();
+  void saveStateToSheet();
 
   views.forEach((view) => {
     view.classList.toggle("is-active", view.dataset.view === viewName);
@@ -244,8 +271,11 @@ function renderExpenses() {
   expenseTable.innerHTML = rows;
 }
 
-function toggleDrawer() {
-  drawer.classList.toggle("is-visible");
+function toggleDrawer(forceOpen) {
+  const shouldOpen = forceOpen ?? !drawer.classList.contains("is-visible");
+  drawer.classList.toggle("is-visible", shouldOpen);
+  drawerOverlay.classList.toggle("is-visible", shouldOpen);
+  drawer.setAttribute("aria-hidden", (!shouldOpen).toString());
 }
 
 loginForm.addEventListener("submit", (event) => {
@@ -260,7 +290,7 @@ loginForm.addEventListener("submit", (event) => {
   }
 
   state.currentUser = { ...found };
-  saveState();
+  void saveStateToSheet();
   loginMessage.textContent = "";
   loginForm.reset();
   updateView();
@@ -268,7 +298,7 @@ loginForm.addEventListener("submit", (event) => {
 
 logoutButton.addEventListener("click", () => {
   state.currentUser = null;
-  saveState();
+  void saveStateToSheet();
   updateView();
 });
 
@@ -281,11 +311,16 @@ bottomNavItems.forEach((button) => {
 drawerNavItems.forEach((button) => {
   button.addEventListener("click", () => {
     setActiveView(button.dataset.view);
+    toggleDrawer(false);
   });
 });
 
 menuToggle.addEventListener("click", () => {
   toggleDrawer();
+});
+
+drawerOverlay.addEventListener("click", () => {
+  toggleDrawer(false);
 });
 
 fabButton.addEventListener("click", () => {
@@ -341,7 +376,7 @@ expenseForm.addEventListener("submit", (event) => {
   }
 
   state.expenses.push(newExpense);
-  saveState();
+  void saveStateToSheet();
   expenseForm.reset();
   expenseMessage.textContent = "Egreso registrado correctamente.";
   renderBalances();
@@ -368,7 +403,7 @@ userForm.addEventListener("submit", (event) => {
     password,
     role,
   });
-  saveState();
+  void saveStateToSheet();
   userForm.reset();
   userMessage.textContent = "Usuario creado.";
 });
@@ -388,7 +423,7 @@ clientForm.addEventListener("submit", (event) => {
     name,
     city,
   });
-  saveState();
+  void saveStateToSheet();
   clientForm.reset();
   clientMessage.textContent = "Cliente creado.";
   renderOptions();
@@ -414,11 +449,17 @@ projectForm.addEventListener("submit", (event) => {
     name,
     baseAmount,
   });
-  saveState();
+  void saveStateToSheet();
   projectForm.reset();
   projectMessage.textContent = "Proyecto creado.";
   renderOptions();
   renderBalances();
 });
 
-updateView();
+async function initApp() {
+  sheetStatusEl.textContent = getSheetStatusLabel();
+  state = await loadStateFromSheet();
+  updateView();
+}
+
+initApp();
