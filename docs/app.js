@@ -518,22 +518,32 @@ function isSyncEnabled() {
 }
 
 async function apiRequest(action, payload) {
-  const body = new URLSearchParams({
+  const body = JSON.stringify({
     token: CONFIG.appsScriptToken,
     sheetId: CONFIG.sheetId,
     action,
-    payload: JSON.stringify(payload ?? {}),
+    payload: payload ?? {},
   });
   const response = await fetch(CONFIG.appsScriptUrl, {
     method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
     body,
   });
+
+  const result = await response.json().catch(() => null);
 
   if (!response.ok) {
     throw new Error(`Error en Apps Script: ${response.status}`);
   }
 
-  return response.json();
+  if (!result || result.ok === false) {
+    const errorMessage = result?.error ? `Error en Apps Script: ${result.error}` : "Respuesta inválida.";
+    throw new Error(errorMessage);
+  }
+
+  return result.data ?? result;
 }
 
 async function syncFromSheets() {
@@ -681,11 +691,11 @@ expenseForm.addEventListener("submit", async (event) => {
   if (isSyncEnabled()) {
     try {
       const encoded = await readFileAsDataUrl(receiptFile);
+      const base64 = encoded.split(",")[1] ?? "";
       const upload = await apiRequest("uploadReceipt", {
-        name: receiptFile.name,
+        fileName: receiptFile.name,
         mimeType: receiptFile.type,
-        dataUrl: encoded,
-        folderId: CONFIG.driveFolderId,
+        base64,
       });
       receiptUrl = upload?.url || "";
     } catch (error) {
@@ -727,7 +737,21 @@ expenseForm.addEventListener("submit", async (event) => {
 
   if (isSyncEnabled()) {
     try {
-      await apiRequest("appendExpense", newExpense);
+      await apiRequest("appendExpense", {
+        id: newExpense.id,
+        fecha: newExpense.date,
+        categoría: newExpense.category,
+        "tipo soporte": newExpense.supportType,
+        descripción: newExpense.description,
+        valor: newExpense.amount,
+        clienteId: newExpense.clientId,
+        cliente: newExpense.clientName,
+        proyectoId: newExpense.projectId,
+        proyecto: newExpense.projectName,
+        ciudad: newExpense.city,
+        comprobanteNombre: newExpense.receiptName,
+        comprobanteUrl: newExpense.receiptUrl,
+      });
     } catch (error) {
       console.error("No fue posible sincronizar el egreso", error);
       setStatusMessage(
