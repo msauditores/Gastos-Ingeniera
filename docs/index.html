@@ -12,7 +12,8 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="drawer" id="drawer">
+      <div class="drawer-overlay" id="drawer-overlay" aria-hidden="true"></div>
+      <aside class="drawer" id="drawer" aria-hidden="true">
         <div class="drawer__header">
           <img
             src="https://drive.google.com/uc?export=view&id=1S9ph0kU_u1pwY7J5efqoFY5TMFx7AXRa"
@@ -41,6 +42,10 @@
             <div>
               <span class="label">Carpeta Drive</span>
               <p id="drive-folder"></p>
+            </div>
+            <div>
+              <span class="label">Estado</span>
+              <p id="sheet-status"></p>
             </div>
           </div>
         </div>
