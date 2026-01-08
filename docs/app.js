@@ -1,7 +1,8 @@
 const CONFIG = {
   sheetId: "1tLdiGfhlSR0jsXT89jk-dDGfhci-Y3IAiECoR2g5RCo",
   driveFolderId: "1Q7mcMtEQoccD5gfux4TXNi9zY9qnIiXf",
-  appsScriptUrl: "",
+  appsScriptUrl: "https://script.google.com/macros/s/REPLACE_ME/exec",
+  appsScriptToken: "REPLACE_ME",
 };
 
 const defaultState = {
@@ -46,6 +47,7 @@ const fabButton = document.getElementById("fab-button");
 const appTitle = document.getElementById("app-title");
 const menuToggle = document.getElementById("menu-toggle");
 const drawer = document.getElementById("drawer");
+const drawerClose = document.getElementById("drawer-close");
 const drawerOverlay = document.getElementById("drawer-overlay");
 const bottomNav = document.getElementById("bottom-nav");
 const bottomNavItems = document.querySelectorAll(".bottom-nav__item");
@@ -62,6 +64,7 @@ const projectClient = document.getElementById("project-client");
 
 const expenseReceipt = document.getElementById("expense-receipt");
 
+sheetStatusEl.classList.add("status-message");
 sheetIdEl.textContent = CONFIG.sheetId;
 const folderUrl = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
 const folderLink = document.createElement("a");
@@ -74,49 +77,117 @@ folderLink.className = "link";
 driveFolderEl.append(folderLink);
 
 function getSheetStatusLabel() {
-  return CONFIG.appsScriptUrl ? "Conectado a Google Sheets" : "Falta configurar Apps Script";
+  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
+    return "Falta configurar Apps Script";
+  }
+  return "Conectado a Google Sheets";
 }
 
-async function loadStateFromSheet() {
-  if (!CONFIG.appsScriptUrl) {
-    return structuredClone(defaultState);
-  }
-  try {
-    const response = await fetch(
-      `${CONFIG.appsScriptUrl}?action=read&sheetId=${encodeURIComponent(CONFIG.sheetId)}`,
-    );
-    if (!response.ok) {
-      throw new Error("No se pudo obtener información desde Sheets.");
-    }
-    const data = await response.json();
-    return {
-      ...structuredClone(defaultState),
-      ...data,
-    };
-  } catch (error) {
-    console.error("Error cargando desde Sheets", error);
-    return structuredClone(defaultState);
-  }
-}
-
-async function saveStateToSheet() {
-  if (!CONFIG.appsScriptUrl) {
-    console.warn("Apps Script no configurado. No se guardan cambios.");
+function setStatusMessage(target, message, variant) {
+  if (!target) {
     return;
   }
+  target.textContent = message;
+  target.classList.remove("is-error", "is-success", "is-loading");
+  if (variant) {
+    target.classList.add(`is-${variant}`);
+  }
+}
+
+function getAuthHeaders() {
+  const headers = {};
+  if (CONFIG.appsScriptToken) {
+    headers.Authorization = `Bearer ${CONFIG.appsScriptToken}`;
+  }
+  return headers;
+}
+
+async function readStateFromSheet() {
+  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
+    throw new Error("Apps Script no configurado.");
+  }
+  const response = await fetch(
+    `${CONFIG.appsScriptUrl}?action=read&sheetId=${encodeURIComponent(CONFIG.sheetId)}`,
+    {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
+  if (!response.ok) {
+    throw new Error("No se pudo obtener información desde Sheets.");
+  }
+  return response.json();
+}
+
+async function writeStateToSheet() {
+  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
+    return { ok: false, error: "Apps Script no configurado." };
+  }
   try {
-    await fetch(CONFIG.appsScriptUrl, {
+    const response = await fetch(CONFIG.appsScriptUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
       body: JSON.stringify({
         action: "write",
         sheetId: CONFIG.sheetId,
         state,
       }),
     });
+    if (!response.ok) {
+      throw new Error("No se pudo guardar en Sheets.");
+    }
+    return { ok: true };
   } catch (error) {
     console.error("Error guardando en Sheets", error);
+    return { ok: false, error: "No se pudo guardar en Sheets." };
   }
+}
+
+async function refreshStateFromSheet() {
+  setStatusMessage(sheetStatusEl, "Sincronizando con Sheets...", "loading");
+  try {
+    const data = await readStateFromSheet();
+    state = {
+      ...structuredClone(defaultState),
+      ...data,
+    };
+    setStatusMessage(sheetStatusEl, "Datos sincronizados.", "success");
+    updateView();
+    return true;
+  } catch (error) {
+    console.error("Error cargando desde Sheets", error);
+    setStatusMessage(sheetStatusEl, "Error al conectar con Sheets.", "error");
+    updateView();
+    return false;
+  }
+}
+
+async function saveStateToSheet() {
+  const result = await writeStateToSheet();
+  if (!result.ok) {
+    setStatusMessage(sheetStatusEl, result.error || "Error al guardar en Sheets.", "error");
+  }
+  return result.ok;
+}
+
+async function persistAndRefresh(messageEl, successMessage) {
+  setStatusMessage(messageEl, "Guardando en Sheets...", "loading");
+  const saved = await saveStateToSheet();
+  if (!saved) {
+    setStatusMessage(messageEl, "No se pudo guardar en Sheets.", "error");
+    return false;
+  }
+  const refreshed = await refreshStateFromSheet();
+  if (refreshed) {
+    setStatusMessage(messageEl, successMessage, "success");
+    return true;
+  }
+  setStatusMessage(messageEl, "Guardado local, pero sin sincronizar.", "error");
+  return false;
 }
 
 function updateView() {
@@ -128,10 +199,17 @@ function updateView() {
   bottomNav.classList.toggle("hidden", !isLoggedIn);
 
   if (!isLoggedIn) {
+    toggleDrawer(false);
     return;
   }
 
-  sheetStatusEl.textContent = getSheetStatusLabel();
+  if (
+    !sheetStatusEl.classList.contains("is-loading")
+    && !sheetStatusEl.classList.contains("is-success")
+    && !sheetStatusEl.classList.contains("is-error")
+  ) {
+    setStatusMessage(sheetStatusEl, getSheetStatusLabel());
+  }
   userSummary.textContent = `${state.currentUser.name} · Rol ${state.currentUser.role}`;
   adminSection.classList.toggle("hidden", state.currentUser.role !== "admin");
 
@@ -276,29 +354,37 @@ function toggleDrawer(forceOpen) {
   drawer.classList.toggle("is-visible", shouldOpen);
   drawerOverlay.classList.toggle("is-visible", shouldOpen);
   drawer.setAttribute("aria-hidden", (!shouldOpen).toString());
+  drawerOverlay.setAttribute("aria-hidden", (!shouldOpen).toString());
+  menuToggle.classList.toggle("is-active", shouldOpen);
+  menuToggle.setAttribute("aria-expanded", shouldOpen.toString());
+  document.body.classList.toggle("is-locked", shouldOpen);
 }
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const username = document.getElementById("login-username").value.trim();
   const password = document.getElementById("login-password").value.trim();
   const found = state.users.find((user) => user.username === username && user.password === password);
 
   if (!found) {
-    loginMessage.textContent = "Credenciales inválidas.";
+    setStatusMessage(loginMessage, "Credenciales inválidas.", "error");
     return;
   }
 
   state.currentUser = { ...found };
-  void saveStateToSheet();
-  loginMessage.textContent = "";
+  const saved = await saveStateToSheet();
+  if (!saved) {
+    setStatusMessage(loginMessage, "No se pudo sincronizar la sesión.", "error");
+    return;
+  }
+  setStatusMessage(loginMessage, "", "");
   loginForm.reset();
   updateView();
 });
 
-logoutButton.addEventListener("click", () => {
+logoutButton.addEventListener("click", async () => {
   state.currentUser = null;
-  void saveStateToSheet();
+  await saveStateToSheet();
   updateView();
 });
 
@@ -319,6 +405,10 @@ menuToggle.addEventListener("click", () => {
   toggleDrawer();
 });
 
+drawerClose.addEventListener("click", () => {
+  toggleDrawer(false);
+});
+
 drawerOverlay.addEventListener("click", () => {
   toggleDrawer(false);
 });
@@ -337,18 +427,18 @@ expenseProject.addEventListener("change", () => {
   updateExpenseAvailability();
 });
 
-expenseForm.addEventListener("submit", (event) => {
+expenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const projectId = expenseProject.value;
   const remaining = calculateProjectBalance(projectId);
   if (remaining <= 0) {
-    expenseMessage.textContent = "La caja está en $0. No se puede registrar el egreso.";
+    setStatusMessage(expenseMessage, "La caja está en $0. No se puede registrar el egreso.", "error");
     return;
   }
 
   const receiptFile = expenseReceipt.files[0];
   if (!receiptFile) {
-    expenseMessage.textContent = "Debe adjuntar una foto del comprobante.";
+    setStatusMessage(expenseMessage, "Debe adjuntar una foto del comprobante.", "error");
     return;
   }
 
@@ -371,20 +461,21 @@ expenseForm.addEventListener("submit", (event) => {
   };
 
   if (newExpense.amount > remaining) {
-    expenseMessage.textContent = "El valor supera el saldo disponible en la caja.";
+    setStatusMessage(expenseMessage, "El valor supera el saldo disponible en la caja.", "error");
     return;
   }
 
   state.expenses.push(newExpense);
-  void saveStateToSheet();
-  expenseForm.reset();
-  expenseMessage.textContent = "Egreso registrado correctamente.";
-  renderBalances();
-  renderExpenses();
-  updateExpenseAvailability();
+  const synced = await persistAndRefresh(expenseMessage, "Egreso registrado correctamente.");
+  if (synced) {
+    expenseForm.reset();
+    renderBalances();
+    renderExpenses();
+    updateExpenseAvailability();
+  }
 });
 
-userForm.addEventListener("submit", (event) => {
+userForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("user-name").value.trim();
   const username = document.getElementById("user-username").value.trim();
@@ -392,7 +483,7 @@ userForm.addEventListener("submit", (event) => {
   const role = document.getElementById("user-role").value;
 
   if (state.users.some((user) => user.username === username)) {
-    userMessage.textContent = "El usuario ya existe.";
+    setStatusMessage(userMessage, "El usuario ya existe.", "error");
     return;
   }
 
@@ -403,18 +494,19 @@ userForm.addEventListener("submit", (event) => {
     password,
     role,
   });
-  void saveStateToSheet();
-  userForm.reset();
-  userMessage.textContent = "Usuario creado.";
+  const synced = await persistAndRefresh(userMessage, "Usuario creado.");
+  if (synced) {
+    userForm.reset();
+  }
 });
 
-clientForm.addEventListener("submit", (event) => {
+clientForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("client-name").value.trim();
   const city = document.getElementById("client-city").value.trim();
 
   if (!name || !city) {
-    clientMessage.textContent = "Complete todos los campos.";
+    setStatusMessage(clientMessage, "Complete todos los campos.", "error");
     return;
   }
 
@@ -423,13 +515,14 @@ clientForm.addEventListener("submit", (event) => {
     name,
     city,
   });
-  void saveStateToSheet();
-  clientForm.reset();
-  clientMessage.textContent = "Cliente creado.";
-  renderOptions();
+  const synced = await persistAndRefresh(clientMessage, "Cliente creado.");
+  if (synced) {
+    clientForm.reset();
+    renderOptions();
+  }
 });
 
-projectForm.addEventListener("submit", (event) => {
+projectForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const clientId = projectClient.value;
   const client = state.clients.find((item) => item.id === clientId);
@@ -437,7 +530,7 @@ projectForm.addEventListener("submit", (event) => {
   const baseAmount = Number(document.getElementById("project-base").value);
 
   if (!client) {
-    projectMessage.textContent = "Seleccione un cliente válido.";
+    setStatusMessage(projectMessage, "Seleccione un cliente válido.", "error");
     return;
   }
 
@@ -449,17 +542,17 @@ projectForm.addEventListener("submit", (event) => {
     name,
     baseAmount,
   });
-  void saveStateToSheet();
-  projectForm.reset();
-  projectMessage.textContent = "Proyecto creado.";
-  renderOptions();
-  renderBalances();
+  const synced = await persistAndRefresh(projectMessage, "Proyecto creado.");
+  if (synced) {
+    projectForm.reset();
+    renderOptions();
+    renderBalances();
+  }
 });
 
 async function initApp() {
-  sheetStatusEl.textContent = getSheetStatusLabel();
-  state = await loadStateFromSheet();
-  updateView();
+  setStatusMessage(sheetStatusEl, getSheetStatusLabel());
+  await refreshStateFromSheet();
 }
 
 initApp();
