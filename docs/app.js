@@ -21,6 +21,8 @@ const defaultState = {
   clients: [],
   projects: [],
   expenses: [],
+  concepts: ["Transporte", "Alimentación", "Materiales", "Servicios"],
+  supports: ["Factura", "Recibo", "Comprobante", "Otro"],
   currentView: "dashboard",
 };
 
@@ -65,6 +67,8 @@ const expenseClient = document.getElementById("expense-client");
 const expenseProject = document.getElementById("expense-project");
 const expenseCity = document.getElementById("expense-city");
 const expenseRemaining = document.getElementById("expense-remaining");
+const expenseCategory = document.getElementById("expense-category");
+const expenseSupport = document.getElementById("expense-support");
 const expenseWarning = document.getElementById("expense-warning");
 const expenseMessage = document.getElementById("expense-message");
 const expenseTable = document.getElementById("expense-table");
@@ -75,6 +79,8 @@ const userForm = document.getElementById("user-form");
 const userMessage = document.getElementById("user-message");
 const userList = document.getElementById("user-list");
 const adminSection = document.getElementById("admin-section");
+const projectCodeInput = document.getElementById("project-code");
+const projectCityInput = document.getElementById("project-city");
 
 const folderUrl = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
 
@@ -175,7 +181,7 @@ function calculateProjectBalance(projectId) {
   return project.baseAmount - spent;
 }
 
-function renderSelect(selectEl, items, placeholder, getLabel) {
+function renderSelect(selectEl, items, placeholder, getLabel, selectedId) {
   if (!selectEl) {
     return;
   }
@@ -189,6 +195,9 @@ function renderSelect(selectEl, items, placeholder, getLabel) {
     const option = document.createElement("option");
     option.value = item.id;
     option.textContent = getLabel ? getLabel(item) : item.name;
+    if (selectedId && option.value === selectedId) {
+      option.selected = true;
+    }
     selectEl.append(option);
   });
 }
@@ -277,7 +286,14 @@ function renderExpenses() {
           </div>
           <div class="list-item__meta">${expense.date} · ${expense.projectName}</div>
           <div class="list-item__meta">${expense.clientName} · ${expense.description}</div>
-          <div class="list-item__meta">Soporte: ${expense.receiptName || "Sin archivo"}</div>
+          <div class="list-item__meta">Soporte: ${expense.supportType || "Sin definir"}</div>
+          <div class="list-item__meta">
+            Comprobante: ${
+              expense.receiptUrl
+                ? `<a class="link" href="${expense.receiptUrl}" target="_blank" rel="noreferrer">${expense.receiptName}</a>`
+                : expense.receiptName || "Sin archivo"
+            }
+          </div>
         </div>
       `;
     })
@@ -364,16 +380,26 @@ function renderStats() {
 }
 
 function renderOptions() {
-  renderSelect(projectClient, state.clients, "Seleccione un cliente");
-  renderSelect(expenseClient, state.clients, "Seleccione un cliente");
+  renderSelect(projectClient, state.clients, "Seleccione un cliente", null, projectClient.value);
+  renderSelect(expenseClient, state.clients, "Seleccione un cliente", null, expenseClient.value);
 
   const selectedClientId = expenseClient.value;
   const projects = state.projects.filter((project) => project.clientId === selectedClientId);
-  renderSelect(expenseProject, projects, "Seleccione un proyecto", (item) => `${item.code} · ${item.name}`);
+  renderSelect(
+    expenseProject,
+    projects,
+    "Seleccione un proyecto",
+    (item) => `${item.code} · ${item.name}`,
+    expenseProject.value,
+  );
 
   const selectedProject = state.projects.find((project) => project.id === expenseProject.value);
   expenseCity.value = selectedProject?.city || "";
   updateExpenseAvailability();
+
+  renderSimpleSelect(expenseCategory, state.concepts, "Seleccione una categoría");
+  renderSimpleSelect(expenseSupport, state.supports, "Seleccione el soporte");
+  updateProjectCodeSuggestion();
 }
 
 function updateView() {
@@ -404,6 +430,146 @@ function updateView() {
   renderUsers();
 
   setActiveView(state.currentView || "dashboard");
+}
+
+function renderSimpleSelect(selectEl, items, placeholder) {
+  if (!selectEl) {
+    return;
+  }
+  const selected = selectEl.value;
+  selectEl.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = placeholder;
+  selectEl.append(empty);
+
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item;
+    option.textContent = item;
+    if (selected && option.value === selected) {
+      option.selected = true;
+    }
+    selectEl.append(option);
+  });
+}
+
+function normalizeCodeSegment(text) {
+  return text
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.slice(0, 2))
+    .join("")
+    .slice(0, 6);
+}
+
+function getNextProjectSequence(clientId, city) {
+  const citySegment = normalizeCodeSegment(city);
+  const matching = state.projects.filter(
+    (project) => project.clientId === clientId && normalizeCodeSegment(project.city) === citySegment,
+  );
+  const maxSequence = matching.reduce((max, project) => {
+    const match = project.code?.match(/(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return String(maxSequence + 1).padStart(3, "0");
+}
+
+function getSuggestedProjectCode() {
+  const clientId = projectClient.value;
+  const client = state.clients.find((item) => item.id === clientId);
+  const city = projectCityInput.value.trim();
+  if (!client || !city) {
+    return "";
+  }
+  const clientSegment = normalizeCodeSegment(client.name);
+  const citySegment = normalizeCodeSegment(city);
+  const sequence = getNextProjectSequence(client.id, city);
+  if (!clientSegment || !citySegment) {
+    return "";
+  }
+  return `${clientSegment}-${citySegment}-${sequence}`;
+}
+
+function updateProjectCodeSuggestion() {
+  if (!projectCodeInput) {
+    return;
+  }
+  const shouldUpdate = !projectCodeInput.value || projectCodeInput.dataset.auto === "true";
+  if (!shouldUpdate) {
+    return;
+  }
+  const suggested = getSuggestedProjectCode();
+  if (suggested) {
+    projectCodeInput.value = suggested;
+    projectCodeInput.dataset.auto = "true";
+  }
+}
+
+function markProjectCodeManual() {
+  projectCodeInput.dataset.auto = "false";
+}
+
+function isSyncEnabled() {
+  return Boolean(CONFIG.appsScriptUrl && CONFIG.appsScriptToken);
+}
+
+async function apiRequest(action, payload) {
+  const response = await fetch(CONFIG.appsScriptUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token: CONFIG.appsScriptToken,
+      sheetId: CONFIG.sheetId,
+      action,
+      payload,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error en Apps Script: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function syncFromSheets() {
+  if (!isSyncEnabled()) {
+    return;
+  }
+  setStatusMessage(sheetStatusEl, "Sincronizando con Google Sheets...", "loading");
+  try {
+    const data = await apiRequest("bootstrap");
+    const resolveCollection = (incoming, fallback) =>
+      Array.isArray(incoming) && incoming.length ? incoming : fallback;
+    state = {
+      ...state,
+      users: resolveCollection(data.users, state.users),
+      clients: resolveCollection(data.clients, state.clients),
+      projects: resolveCollection(data.projects, state.projects),
+      expenses: resolveCollection(data.expenses, state.expenses),
+      concepts: resolveCollection(data.concepts, state.concepts),
+      supports: resolveCollection(data.supports, state.supports),
+    };
+    persistState();
+    setStatusMessage(sheetStatusEl, "Datos actualizados desde Google Sheets.", "success");
+    updateView();
+  } catch (error) {
+    console.error("Error sincronizando con Google Sheets", error);
+    setStatusMessage(sheetStatusEl, "No fue posible sincronizar con Google Sheets.", "error");
+  }
+}
+
+async function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No fue posible leer el archivo"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function handleReceiptPreview(file) {
@@ -456,7 +622,11 @@ navButtons.forEach((button) => {
 
 syncButton.addEventListener("click", () => {
   persistState();
-  setStatusMessage(sheetStatusEl, "Datos guardados localmente.", "success");
+  if (!isSyncEnabled()) {
+    setStatusMessage(sheetStatusEl, "Datos guardados localmente.", "success");
+    return;
+  }
+  syncFromSheets();
 });
 
 expenseClient.addEventListener("change", () => {
@@ -467,11 +637,23 @@ expenseProject.addEventListener("change", () => {
   renderOptions();
 });
 
+projectClient.addEventListener("change", () => {
+  updateProjectCodeSuggestion();
+});
+
+projectCityInput.addEventListener("input", () => {
+  updateProjectCodeSuggestion();
+});
+
+projectCodeInput.addEventListener("input", () => {
+  markProjectCodeManual();
+});
+
 receiptInput.addEventListener("change", (event) => {
   handleReceiptPreview(event.target.files[0]);
 });
 
-expenseForm.addEventListener("submit", (event) => {
+expenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const projectId = expenseProject.value;
   const remaining = calculateProjectBalance(projectId);
@@ -495,13 +677,33 @@ expenseForm.addEventListener("submit", (event) => {
     return;
   }
 
+  let receiptUrl = "";
+  if (isSyncEnabled()) {
+    try {
+      const encoded = await readFileAsDataUrl(receiptFile);
+      const upload = await apiRequest("uploadReceipt", {
+        name: receiptFile.name,
+        mimeType: receiptFile.type,
+        dataUrl: encoded,
+        folderId: CONFIG.driveFolderId,
+      });
+      receiptUrl = upload?.url || "";
+    } catch (error) {
+      console.error("No fue posible subir el comprobante", error);
+      setStatusMessage(expenseMessage, "No fue posible subir el comprobante a Drive.", "error");
+      return;
+    }
+  }
+
   const newExpense = {
     id: `exp_${crypto.randomUUID()}`,
     date: document.getElementById("expense-date").value,
-    category: document.getElementById("expense-category").value.trim(),
+    category: expenseCategory.value,
+    supportType: expenseSupport.value,
     description: document.getElementById("expense-description").value.trim(),
     amount,
     receiptName: receiptFile.name,
+    receiptUrl,
     clientId: client?.id,
     clientName: client?.name ?? "",
     projectId: project?.id,
@@ -514,15 +716,30 @@ expenseForm.addEventListener("submit", (event) => {
   persistState();
   setStatusMessage(expenseMessage, "Egreso registrado correctamente.", "success");
   expenseForm.reset();
+  expenseCategory.value = "";
+  expenseSupport.value = "";
   handleReceiptPreview(null);
   renderExpenses();
   renderRecentExpenses();
   renderBalances();
   renderStats();
   updateExpenseAvailability();
+
+  if (isSyncEnabled()) {
+    try {
+      await apiRequest("appendExpense", newExpense);
+    } catch (error) {
+      console.error("No fue posible sincronizar el egreso", error);
+      setStatusMessage(
+        expenseMessage,
+        "Egreso guardado localmente, pero no se pudo sincronizar con Google Sheets.",
+        "error",
+      );
+    }
+  }
 });
 
-clientForm.addEventListener("submit", (event) => {
+clientForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("client-name").value.trim();
   const city = document.getElementById("client-city").value.trim();
@@ -533,8 +750,11 @@ clientForm.addEventListener("submit", (event) => {
     return;
   }
 
+  const clientCode = normalizeCodeSegment(name);
+  const clientId = `client_${crypto.randomUUID()}`;
   state.clients.push({
-    id: `client_${crypto.randomUUID()}`,
+    id: clientId,
+    code: clientCode,
     name,
     city,
     contact,
@@ -545,13 +765,32 @@ clientForm.addEventListener("submit", (event) => {
   renderClients();
   renderOptions();
   renderStats();
+
+  if (isSyncEnabled()) {
+    try {
+      await apiRequest("appendClient", {
+        id: clientId,
+        code: clientCode,
+        name,
+        city,
+        contact,
+      });
+    } catch (error) {
+      console.error("No fue posible sincronizar el cliente", error);
+      setStatusMessage(
+        clientMessage,
+        "Cliente guardado localmente, pero no se pudo sincronizar con Google Sheets.",
+        "error",
+      );
+    }
+  }
 });
 
-projectForm.addEventListener("submit", (event) => {
+projectForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const clientId = projectClient.value;
   const client = state.clients.find((item) => item.id === clientId);
-  const code = document.getElementById("project-code").value.trim();
+  const code = projectCodeInput.value.trim() || getSuggestedProjectCode();
   const name = document.getElementById("project-name").value.trim();
   const city = document.getElementById("project-city").value.trim();
   const baseAmount = Number(document.getElementById("project-base").value);
@@ -566,8 +805,9 @@ projectForm.addEventListener("submit", (event) => {
     return;
   }
 
+  const projectId = `project_${crypto.randomUUID()}`;
   state.projects.push({
-    id: `project_${crypto.randomUUID()}`,
+    id: projectId,
     clientId: client.id,
     clientName: client.name,
     code,
@@ -578,13 +818,35 @@ projectForm.addEventListener("submit", (event) => {
   persistState();
   setStatusMessage(projectMessage, "Proyecto creado.", "success");
   projectForm.reset();
+  projectCodeInput.dataset.auto = "true";
   renderOptions();
   renderProjects();
   renderBalances();
   renderStats();
+
+  if (isSyncEnabled()) {
+    try {
+      await apiRequest("appendProject", {
+        id: projectId,
+        clientId: client.id,
+        clientName: client.name,
+        code,
+        name,
+        city,
+        baseAmount,
+      });
+    } catch (error) {
+      console.error("No fue posible sincronizar el proyecto", error);
+      setStatusMessage(
+        projectMessage,
+        "Proyecto guardado localmente, pero no se pudo sincronizar con Google Sheets.",
+        "error",
+      );
+    }
+  }
 });
 
-userForm.addEventListener("submit", (event) => {
+userForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("user-name").value.trim();
   const username = document.getElementById("user-username").value.trim();
@@ -596,8 +858,9 @@ userForm.addEventListener("submit", (event) => {
     return;
   }
 
+  const userId = `user_${crypto.randomUUID()}`;
   state.users.push({
-    id: `user_${crypto.randomUUID()}`,
+    id: userId,
     name,
     username,
     password,
@@ -607,6 +870,25 @@ userForm.addEventListener("submit", (event) => {
   setStatusMessage(userMessage, "Usuario creado.", "success");
   userForm.reset();
   renderUsers();
+
+  if (isSyncEnabled()) {
+    try {
+      await apiRequest("appendUser", {
+        id: userId,
+        name,
+        username,
+        password,
+        role,
+      });
+    } catch (error) {
+      console.error("No fue posible sincronizar el usuario", error);
+      setStatusMessage(
+        userMessage,
+        "Usuario guardado localmente, pero no se pudo sincronizar con Google Sheets.",
+        "error",
+      );
+    }
+  }
 });
 
 function initApp() {
@@ -619,8 +901,13 @@ function initApp() {
   folderLink.className = "link";
   driveFolderEl.append(folderLink);
 
+  if (projectCodeInput) {
+    projectCodeInput.dataset.auto = "true";
+  }
+
   setStatusMessage(sheetStatusEl, getSheetStatusLabel());
   updateView();
+  syncFromSheets();
 }
 
 initApp();
