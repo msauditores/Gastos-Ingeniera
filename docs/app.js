@@ -1,9 +1,11 @@
 const CONFIG = {
   sheetId: "1tLdiGfhlSR0jsXT89jk-dDGfhci-Y3IAiECoR2g5RCo",
   driveFolderId: "1Q7mcMtEQoccD5gfux4TXNi9zY9qnIiXf",
-  appsScriptUrl: "https://script.google.com/macros/s/REPLACE_ME/exec",
-  appsScriptToken: "REPLACE_ME",
+  appsScriptUrl: "",
+  appsScriptToken: "",
 };
+
+const STORAGE_KEY = "gastos-ingenieria-state";
 
 const defaultState = {
   currentUser: null,
@@ -19,10 +21,10 @@ const defaultState = {
   clients: [],
   projects: [],
   expenses: [],
-  currentView: "caja",
+  currentView: "dashboard",
 };
 
-let state = structuredClone(defaultState);
+let state = loadState();
 
 const sheetIdEl = document.getElementById("sheet-id");
 const driveFolderEl = document.getElementById("drive-folder");
@@ -33,54 +35,69 @@ const loginForm = document.getElementById("login-form");
 const loginMessage = document.getElementById("login-message");
 const logoutButton = document.getElementById("logout-button");
 const userSummary = document.getElementById("user-summary");
+const navButtons = document.querySelectorAll(".nav__item");
+const views = document.querySelectorAll(".view");
+const usersNav = document.getElementById("users-nav");
+const viewTitle = document.getElementById("view-title");
+const viewSubtitle = document.getElementById("view-subtitle");
+const viewEyebrow = document.getElementById("view-eyebrow");
+const syncButton = document.getElementById("sync-button");
+
+const statClients = document.getElementById("stat-clients");
+const statProjects = document.getElementById("stat-projects");
+const statBase = document.getElementById("stat-base");
+const statRemaining = document.getElementById("stat-remaining");
+
 const balancesEl = document.getElementById("balances");
+const recentExpensesEl = document.getElementById("recent-expenses");
+
+const clientForm = document.getElementById("client-form");
+const clientMessage = document.getElementById("client-message");
+const clientList = document.getElementById("client-list");
+
+const projectForm = document.getElementById("project-form");
+const projectMessage = document.getElementById("project-message");
+const projectClient = document.getElementById("project-client");
+const projectList = document.getElementById("project-list");
+
 const expenseForm = document.getElementById("expense-form");
 const expenseClient = document.getElementById("expense-client");
 const expenseProject = document.getElementById("expense-project");
 const expenseCity = document.getElementById("expense-city");
+const expenseRemaining = document.getElementById("expense-remaining");
 const expenseWarning = document.getElementById("expense-warning");
 const expenseMessage = document.getElementById("expense-message");
 const expenseTable = document.getElementById("expense-table");
-const adminSection = document.getElementById("admin-section");
-const expenseSheet = document.getElementById("expense-sheet");
-const fabButton = document.getElementById("fab-button");
-const appTitle = document.getElementById("app-title");
-const menuToggle = document.getElementById("menu-toggle");
-const drawer = document.getElementById("drawer");
-const drawerClose = document.getElementById("drawer-close");
-const drawerOverlay = document.getElementById("drawer-overlay");
-const bottomNav = document.getElementById("bottom-nav");
-const bottomNavItems = document.querySelectorAll(".bottom-nav__item");
-const drawerNavItems = document.querySelectorAll(".drawer__item[data-view]");
-const views = document.querySelectorAll(".view");
+const receiptInput = document.getElementById("expense-receipt");
+const receiptPreview = document.getElementById("receipt-preview");
 
 const userForm = document.getElementById("user-form");
 const userMessage = document.getElementById("user-message");
-const clientForm = document.getElementById("client-form");
-const clientMessage = document.getElementById("client-message");
-const projectForm = document.getElementById("project-form");
-const projectMessage = document.getElementById("project-message");
-const projectClient = document.getElementById("project-client");
+const userList = document.getElementById("user-list");
+const adminSection = document.getElementById("admin-section");
 
-const expenseReceipt = document.getElementById("expense-receipt");
-
-sheetStatusEl.classList.add("status-message");
-sheetIdEl.textContent = CONFIG.sheetId;
 const folderUrl = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
-const folderLink = document.createElement("a");
-folderLink.href = folderUrl;
-folderLink.textContent = CONFIG.driveFolderId;
-folderLink.target = "_blank";
-folderLink.rel = "noreferrer";
-folderLink.className = "link";
 
-driveFolderEl.append(folderLink);
-
-function getSheetStatusLabel() {
-  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
-    return "Falta configurar Apps Script";
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) {
+    return structuredClone(defaultState);
   }
-  return "Conectado a Google Sheets";
+  try {
+    const parsed = JSON.parse(saved);
+    return {
+      ...structuredClone(defaultState),
+      ...parsed,
+      currentUser: null,
+    };
+  } catch (error) {
+    console.error("Error leyendo el estado local", error);
+    return structuredClone(defaultState);
+  }
+}
+
+function persistState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function setStatusMessage(target, message, variant) {
@@ -94,174 +111,74 @@ function setStatusMessage(target, message, variant) {
   }
 }
 
-function getAuthHeaders() {
-  const headers = {};
-  if (CONFIG.appsScriptToken) {
-    headers.Authorization = `Bearer ${CONFIG.appsScriptToken}`;
+function getSheetStatusLabel() {
+  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
+    return "Modo local · Configura Apps Script para sincronizar";
   }
-  return headers;
+  return "Conectado a Google Sheets";
 }
 
-async function readStateFromSheet() {
-  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
-    throw new Error("Apps Script no configurado.");
-  }
-  const response = await fetch(
-    `${CONFIG.appsScriptUrl}?action=read&sheetId=${encodeURIComponent(CONFIG.sheetId)}`,
-    {
-      headers: {
-        ...getAuthHeaders(),
-      },
+function updateHeader(viewName) {
+  const headerMap = {
+    dashboard: {
+      eyebrow: "Panel general",
+      title: "Resumen operativo",
+      subtitle: "Visualiza el estado de las cajas menores y los últimos egresos registrados.",
     },
-  );
-  if (!response.ok) {
-    throw new Error("No se pudo obtener información desde Sheets.");
-  }
-  return response.json();
-}
-
-async function writeStateToSheet() {
-  if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
-    return { ok: false, error: "Apps Script no configurado." };
-  }
-  try {
-    const response = await fetch(CONFIG.appsScriptUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({
-        action: "write",
-        sheetId: CONFIG.sheetId,
-        state,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error("No se pudo guardar en Sheets.");
-    }
-    return { ok: true };
-  } catch (error) {
-    console.error("Error guardando en Sheets", error);
-    return { ok: false, error: "No se pudo guardar en Sheets." };
-  }
-}
-
-async function refreshStateFromSheet() {
-  setStatusMessage(sheetStatusEl, "Sincronizando con Sheets...", "loading");
-  try {
-    const data = await readStateFromSheet();
-    state = {
-      ...structuredClone(defaultState),
-      ...data,
-    };
-    setStatusMessage(sheetStatusEl, "Datos sincronizados.", "success");
-    updateView();
-    return true;
-  } catch (error) {
-    console.error("Error cargando desde Sheets", error);
-    setStatusMessage(sheetStatusEl, "Error al conectar con Sheets.", "error");
-    updateView();
-    return false;
-  }
-}
-
-async function saveStateToSheet() {
-  const result = await writeStateToSheet();
-  if (!result.ok) {
-    setStatusMessage(sheetStatusEl, result.error || "Error al guardar en Sheets.", "error");
-  }
-  return result.ok;
-}
-
-async function persistAndRefresh(messageEl, successMessage) {
-  setStatusMessage(messageEl, "Guardando en Sheets...", "loading");
-  const saved = await saveStateToSheet();
-  if (!saved) {
-    setStatusMessage(messageEl, "No se pudo guardar en Sheets.", "error");
-    return false;
-  }
-  const refreshed = await refreshStateFromSheet();
-  if (refreshed) {
-    setStatusMessage(messageEl, successMessage, "success");
-    return true;
-  }
-  setStatusMessage(messageEl, "Guardado local, pero sin sincronizar.", "error");
-  return false;
-}
-
-function updateView() {
-  const isLoggedIn = Boolean(state.currentUser);
-  loginSection.classList.toggle("hidden", isLoggedIn);
-  appSection.classList.toggle("hidden", !isLoggedIn);
-  drawer.classList.toggle("hidden", !isLoggedIn);
-  fabButton.classList.toggle("hidden", !isLoggedIn);
-  bottomNav.classList.toggle("hidden", !isLoggedIn);
-
-  if (!isLoggedIn) {
-    toggleDrawer(false);
-    return;
-  }
-
-  if (
-    !sheetStatusEl.classList.contains("is-loading")
-    && !sheetStatusEl.classList.contains("is-success")
-    && !sheetStatusEl.classList.contains("is-error")
-  ) {
-    setStatusMessage(sheetStatusEl, getSheetStatusLabel());
-  }
-  userSummary.textContent = `${state.currentUser.name} · Rol ${state.currentUser.role}`;
-  adminSection.classList.toggle("hidden", state.currentUser.role !== "admin");
-
-  renderOptions();
-  renderBalances();
-  renderExpenses();
-  updateExpenseAvailability();
-  setActiveView(state.currentView || "caja");
+    clients: {
+      eyebrow: "Clientes",
+      title: "Gestión de clientes",
+      subtitle: "Registra nuevas empresas y controla sus proyectos asociados.",
+    },
+    projects: {
+      eyebrow: "Proyectos",
+      title: "Cajas menores por proyecto",
+      subtitle: "Asigna códigos, ciudades y bases iniciales a cada proyecto.",
+    },
+    expenses: {
+      eyebrow: "Egresos",
+      title: "Registro de gastos",
+      subtitle: "Adjunta el soporte fotográfico y controla el saldo disponible.",
+    },
+    users: {
+      eyebrow: "Usuarios",
+      title: "Administración de usuarios",
+      subtitle: "Define accesos y roles dentro del aplicativo.",
+    },
+  };
+  const config = headerMap[viewName] || headerMap.dashboard;
+  viewEyebrow.textContent = config.eyebrow;
+  viewTitle.textContent = config.title;
+  viewSubtitle.textContent = config.subtitle;
 }
 
 function setActiveView(viewName) {
   state.currentView = viewName;
-  void saveStateToSheet();
-
+  persistState();
   views.forEach((view) => {
     view.classList.toggle("is-active", view.dataset.view === viewName);
   });
-
-  bottomNavItems.forEach((button) => {
+  navButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === viewName);
   });
-
-  drawerNavItems.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.view === viewName);
-  });
-
-  const titleMap = {
-    caja: "Caja menor",
-    egresos: "Egresos",
-    ingresos: "Usuarios",
-    usuarios: "Usuarios",
-  };
-  appTitle.textContent = titleMap[viewName] || "Gastos Ingeniería";
-
-  const showFab = viewName === "egresos";
-  fabButton.classList.toggle("hidden", !showFab);
-  if (!showFab) {
-    expenseSheet.classList.remove("is-visible");
-  }
+  updateHeader(viewName);
 }
 
-function renderOptions() {
-  renderSelect(expenseClient, state.clients, "Seleccione un cliente");
-  renderSelect(projectClient, state.clients, "Seleccione un cliente");
-  const selectedClientId = expenseClient.value;
-  const projects = state.projects.filter((project) => project.clientId === selectedClientId);
-  renderSelect(expenseProject, projects, "Seleccione un proyecto", (item) => item.name);
-  const selectedProject = state.projects.find((project) => project.id === expenseProject.value);
-  expenseCity.value = selectedProject?.city || "";
+function calculateProjectBalance(projectId) {
+  const project = state.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return 0;
+  }
+  const spent = state.expenses
+    .filter((expense) => expense.projectId === projectId)
+    .reduce((total, expense) => total + expense.amount, 0);
+  return project.baseAmount - spent;
 }
 
 function renderSelect(selectEl, items, placeholder, getLabel) {
+  if (!selectEl) {
+    return;
+  }
   selectEl.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = "";
@@ -276,58 +193,77 @@ function renderSelect(selectEl, items, placeholder, getLabel) {
   });
 }
 
-function calculateProjectBalance(projectId) {
-  const project = state.projects.find((item) => item.id === projectId);
-  if (!project) {
-    return 0;
+function renderClients() {
+  clientList.innerHTML = "";
+  if (!state.clients.length) {
+    clientList.innerHTML = '<p class="form__helper">Aún no hay clientes registrados.</p>';
+    return;
   }
-  const spent = state.expenses
-    .filter((expense) => expense.projectId === projectId)
-    .reduce((total, expense) => total + expense.amount, 0);
-  return project.baseAmount - spent;
+  state.clients.forEach((client) => {
+    const projectCount = state.projects.filter((project) => project.clientId === client.id).length;
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-item__header">
+        <span>${client.name}</span>
+        <span>${projectCount} proyectos</span>
+      </div>
+      <div class="list-item__meta">${client.city}</div>
+      ${client.contact ? `<div class="list-item__meta">${client.contact}</div>` : ""}
+    `;
+    clientList.append(item);
+  });
+}
+
+function renderProjects() {
+  projectList.innerHTML = "";
+  if (!state.projects.length) {
+    projectList.innerHTML = '<p class="form__helper">Aún no hay proyectos registrados.</p>';
+    return;
+  }
+  state.projects.forEach((project) => {
+    const remaining = calculateProjectBalance(project.id);
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-item__header">
+        <span>${project.code} · ${project.name}</span>
+        <span>$${remaining.toLocaleString()}</span>
+      </div>
+      <div class="list-item__meta">${project.clientName} · ${project.city}</div>
+      <div class="list-item__meta">Base inicial: $${project.baseAmount.toLocaleString()}</div>
+    `;
+    projectList.append(item);
+  });
 }
 
 function renderBalances() {
   balancesEl.innerHTML = "";
   if (!state.projects.length) {
-    balancesEl.innerHTML = "<p class=\"form__helper\">Aún no hay cajas creadas.</p>";
+    balancesEl.innerHTML = '<p class="form__helper">Aún no hay cajas creadas.</p>';
     return;
   }
   state.projects.forEach((project) => {
     const remaining = calculateProjectBalance(project.id);
-    const status = remaining > 0 ? "Abierta" : "Cerrada";
+    const status = remaining > 0 ? "Activa" : "Cerrada";
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
       <div class="list-item__header">
         <span>${project.clientName}</span>
-        <span class="status">${status}</span>
+        <span>${status}</span>
       </div>
-      <div class="list-item__meta">$${remaining.toLocaleString()}</div>
-      <div class="list-item__meta">${project.name} · ${project.city}</div>
+      <div class="list-item__meta">Proyecto ${project.code} · ${project.name}</div>
+      <div class="list-item__meta">${project.city} · Saldo $${remaining.toLocaleString()}</div>
     `;
     balancesEl.append(item);
   });
 }
 
-function updateExpenseAvailability() {
-  const projectId = expenseProject.value;
-  const remaining = projectId ? calculateProjectBalance(projectId) : null;
-  if (remaining !== null && remaining <= 0) {
-    expenseWarning.textContent = "La caja está en $0. No es posible registrar más egresos.";
-    expenseWarning.classList.add("is-visible");
-  } else {
-    expenseWarning.textContent = "";
-    expenseWarning.classList.remove("is-visible");
-  }
-
-  const isBlocked = remaining !== null && remaining <= 0;
-  expenseForm.querySelector("button").disabled = isBlocked;
-}
-
 function renderExpenses() {
+  expenseTable.innerHTML = "";
   if (!state.expenses.length) {
-    expenseTable.innerHTML = "<p class=\"form__helper\">No hay egresos registrados.</p>";
+    expenseTable.innerHTML = '<p class="form__helper">No hay egresos registrados.</p>';
     return;
   }
   const rows = [...state.expenses]
@@ -341,26 +277,151 @@ function renderExpenses() {
           </div>
           <div class="list-item__meta">${expense.date} · ${expense.projectName}</div>
           <div class="list-item__meta">${expense.clientName} · ${expense.description}</div>
+          <div class="list-item__meta">Soporte: ${expense.receiptName || "Sin archivo"}</div>
         </div>
       `;
     })
     .join("");
-
   expenseTable.innerHTML = rows;
 }
 
-function toggleDrawer(forceOpen) {
-  const shouldOpen = forceOpen ?? !drawer.classList.contains("is-visible");
-  drawer.classList.toggle("is-visible", shouldOpen);
-  drawerOverlay.classList.toggle("is-visible", shouldOpen);
-  drawer.setAttribute("aria-hidden", (!shouldOpen).toString());
-  drawerOverlay.setAttribute("aria-hidden", (!shouldOpen).toString());
-  menuToggle.classList.toggle("is-active", shouldOpen);
-  menuToggle.setAttribute("aria-expanded", shouldOpen.toString());
-  document.body.classList.toggle("is-locked", shouldOpen);
+function renderRecentExpenses() {
+  recentExpensesEl.innerHTML = "";
+  if (!state.expenses.length) {
+    recentExpensesEl.innerHTML = '<p class="form__helper">No hay egresos registrados.</p>';
+    return;
+  }
+  const rows = [...state.expenses]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 4)
+    .map((expense) => {
+      return `
+        <div class="list-item">
+          <div class="list-item__header">
+            <span>${expense.category}</span>
+            <span>$${expense.amount.toLocaleString()}</span>
+          </div>
+          <div class="list-item__meta">${expense.projectName} · ${expense.clientName}</div>
+          <div class="list-item__meta">${expense.date}</div>
+        </div>
+      `;
+    })
+    .join("");
+  recentExpensesEl.innerHTML = rows;
 }
 
-loginForm.addEventListener("submit", async (event) => {
+function renderUsers() {
+  userList.innerHTML = "";
+  if (!state.users.length) {
+    userList.innerHTML = '<p class="form__helper">No hay usuarios registrados.</p>';
+    return;
+  }
+  state.users.forEach((user) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-item__header">
+        <span>${user.name}</span>
+        <span>${user.role}</span>
+      </div>
+      <div class="list-item__meta">Usuario: ${user.username}</div>
+    `;
+    userList.append(item);
+  });
+}
+
+function updateExpenseAvailability() {
+  const projectId = expenseProject.value;
+  const remaining = projectId ? calculateProjectBalance(projectId) : null;
+  if (remaining !== null) {
+    expenseRemaining.value = `$${remaining.toLocaleString()}`;
+  } else {
+    expenseRemaining.value = "";
+  }
+
+  if (remaining !== null && remaining <= 0) {
+    expenseWarning.textContent = "La caja está en $0. No es posible registrar más egresos.";
+    expenseWarning.classList.add("is-visible");
+  } else {
+    expenseWarning.textContent = "";
+    expenseWarning.classList.remove("is-visible");
+  }
+
+  const isBlocked = remaining !== null && remaining <= 0;
+  expenseForm.querySelector("button").disabled = isBlocked;
+}
+
+function renderStats() {
+  statClients.textContent = state.clients.length;
+  statProjects.textContent = state.projects.length;
+  const totalBase = state.projects.reduce((sum, project) => sum + project.baseAmount, 0);
+  const totalRemaining = state.projects.reduce(
+    (sum, project) => sum + calculateProjectBalance(project.id),
+    0,
+  );
+  statBase.textContent = `$${totalBase.toLocaleString()}`;
+  statRemaining.textContent = `$${totalRemaining.toLocaleString()}`;
+}
+
+function renderOptions() {
+  renderSelect(projectClient, state.clients, "Seleccione un cliente");
+  renderSelect(expenseClient, state.clients, "Seleccione un cliente");
+
+  const selectedClientId = expenseClient.value;
+  const projects = state.projects.filter((project) => project.clientId === selectedClientId);
+  renderSelect(expenseProject, projects, "Seleccione un proyecto", (item) => `${item.code} · ${item.name}`);
+
+  const selectedProject = state.projects.find((project) => project.id === expenseProject.value);
+  expenseCity.value = selectedProject?.city || "";
+  updateExpenseAvailability();
+}
+
+function updateView() {
+  const isLoggedIn = Boolean(state.currentUser);
+  loginSection.classList.toggle("hidden", isLoggedIn);
+  appSection.classList.toggle("hidden", !isLoggedIn);
+  document.getElementById("user-card").classList.toggle("hidden", !isLoggedIn);
+
+  if (!isLoggedIn) {
+    return;
+  }
+
+  userSummary.textContent = `${state.currentUser.name} · ${state.currentUser.role}`;
+  const isAdmin = state.currentUser.role === "admin";
+  usersNav.classList.toggle("hidden", !isAdmin);
+  adminSection.classList.toggle("hidden", !isAdmin);
+  if (!isAdmin && state.currentView === "users") {
+    state.currentView = "dashboard";
+  }
+
+  renderOptions();
+  renderStats();
+  renderBalances();
+  renderProjects();
+  renderClients();
+  renderExpenses();
+  renderRecentExpenses();
+  renderUsers();
+
+  setActiveView(state.currentView || "dashboard");
+}
+
+function handleReceiptPreview(file) {
+  receiptPreview.innerHTML = "";
+  if (!file) {
+    receiptPreview.textContent = "Sin archivo seleccionado";
+    return;
+  }
+  const image = document.createElement("img");
+  image.src = URL.createObjectURL(file);
+  image.alt = "Vista previa del comprobante";
+  const label = document.createElement("span");
+  label.className = "file-preview__label";
+  label.textContent = file.name;
+  receiptPreview.append(image, label);
+}
+
+loginForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const username = document.getElementById("login-username").value.trim();
   const password = document.getElementById("login-password").value.trim();
@@ -372,62 +433,45 @@ loginForm.addEventListener("submit", async (event) => {
   }
 
   state.currentUser = { ...found };
-  const saved = await saveStateToSheet();
-  if (!saved) {
-    setStatusMessage(loginMessage, "No se pudo sincronizar la sesión.", "error");
-    return;
-  }
   setStatusMessage(loginMessage, "", "");
   loginForm.reset();
+  persistState();
   updateView();
 });
 
-logoutButton.addEventListener("click", async () => {
+logoutButton.addEventListener("click", () => {
   state.currentUser = null;
-  await saveStateToSheet();
+  persistState();
   updateView();
 });
 
-bottomNavItems.forEach((button) => {
+navButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.classList.contains("hidden")) {
+      return;
+    }
     setActiveView(button.dataset.view);
   });
 });
 
-drawerNavItems.forEach((button) => {
-  button.addEventListener("click", () => {
-    setActiveView(button.dataset.view);
-    toggleDrawer(false);
-  });
-});
-
-menuToggle.addEventListener("click", () => {
-  toggleDrawer();
-});
-
-drawerClose.addEventListener("click", () => {
-  toggleDrawer(false);
-});
-
-drawerOverlay.addEventListener("click", () => {
-  toggleDrawer(false);
-});
-
-fabButton.addEventListener("click", () => {
-  expenseSheet.classList.toggle("is-visible");
+syncButton.addEventListener("click", () => {
+  persistState();
+  setStatusMessage(sheetStatusEl, "Datos guardados localmente.", "success");
 });
 
 expenseClient.addEventListener("change", () => {
   renderOptions();
-  updateExpenseAvailability();
 });
 
 expenseProject.addEventListener("change", () => {
   renderOptions();
-  updateExpenseAvailability();
 });
 
-expenseForm.addEventListener("submit", async (event) => {
+receiptInput.addEventListener("change", (event) => {
+  handleReceiptPreview(event.target.files[0]);
+});
+
+expenseForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const projectId = expenseProject.value;
   const remaining = calculateProjectBalance(projectId);
@@ -436,7 +480,7 @@ expenseForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const receiptFile = expenseReceipt.files[0];
+  const receiptFile = receiptInput.files[0];
   if (!receiptFile) {
     setStatusMessage(expenseMessage, "Debe adjuntar una foto del comprobante.", "error");
     return;
@@ -444,13 +488,19 @@ expenseForm.addEventListener("submit", async (event) => {
 
   const client = state.clients.find((item) => item.id === expenseClient.value);
   const project = state.projects.find((item) => item.id === projectId);
+  const amount = Number(document.getElementById("expense-amount").value);
+
+  if (amount > remaining) {
+    setStatusMessage(expenseMessage, "El valor supera el saldo disponible en la caja.", "error");
+    return;
+  }
 
   const newExpense = {
     id: `exp_${crypto.randomUUID()}`,
     date: document.getElementById("expense-date").value,
     category: document.getElementById("expense-category").value.trim(),
     description: document.getElementById("expense-description").value.trim(),
-    amount: Number(document.getElementById("expense-amount").value),
+    amount,
     receiptName: receiptFile.name,
     clientId: client?.id,
     clientName: client?.name ?? "",
@@ -460,22 +510,81 @@ expenseForm.addEventListener("submit", async (event) => {
     createdAt: new Date().toISOString(),
   };
 
-  if (newExpense.amount > remaining) {
-    setStatusMessage(expenseMessage, "El valor supera el saldo disponible en la caja.", "error");
+  state.expenses.push(newExpense);
+  persistState();
+  setStatusMessage(expenseMessage, "Egreso registrado correctamente.", "success");
+  expenseForm.reset();
+  handleReceiptPreview(null);
+  renderExpenses();
+  renderRecentExpenses();
+  renderBalances();
+  renderStats();
+  updateExpenseAvailability();
+});
+
+clientForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = document.getElementById("client-name").value.trim();
+  const city = document.getElementById("client-city").value.trim();
+  const contact = document.getElementById("client-contact").value.trim();
+
+  if (!name || !city) {
+    setStatusMessage(clientMessage, "Complete todos los campos obligatorios.", "error");
     return;
   }
 
-  state.expenses.push(newExpense);
-  const synced = await persistAndRefresh(expenseMessage, "Egreso registrado correctamente.");
-  if (synced) {
-    expenseForm.reset();
-    renderBalances();
-    renderExpenses();
-    updateExpenseAvailability();
-  }
+  state.clients.push({
+    id: `client_${crypto.randomUUID()}`,
+    name,
+    city,
+    contact,
+  });
+  persistState();
+  setStatusMessage(clientMessage, "Cliente creado.", "success");
+  clientForm.reset();
+  renderClients();
+  renderOptions();
+  renderStats();
 });
 
-userForm.addEventListener("submit", async (event) => {
+projectForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const clientId = projectClient.value;
+  const client = state.clients.find((item) => item.id === clientId);
+  const code = document.getElementById("project-code").value.trim();
+  const name = document.getElementById("project-name").value.trim();
+  const city = document.getElementById("project-city").value.trim();
+  const baseAmount = Number(document.getElementById("project-base").value);
+
+  if (!client) {
+    setStatusMessage(projectMessage, "Seleccione un cliente válido.", "error");
+    return;
+  }
+
+  if (!code || !name || !city || !baseAmount) {
+    setStatusMessage(projectMessage, "Complete todos los campos del proyecto.", "error");
+    return;
+  }
+
+  state.projects.push({
+    id: `project_${crypto.randomUUID()}`,
+    clientId: client.id,
+    clientName: client.name,
+    code,
+    name,
+    city,
+    baseAmount,
+  });
+  persistState();
+  setStatusMessage(projectMessage, "Proyecto creado.", "success");
+  projectForm.reset();
+  renderOptions();
+  renderProjects();
+  renderBalances();
+  renderStats();
+});
+
+userForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const name = document.getElementById("user-name").value.trim();
   const username = document.getElementById("user-username").value.trim();
@@ -494,65 +603,24 @@ userForm.addEventListener("submit", async (event) => {
     password,
     role,
   });
-  const synced = await persistAndRefresh(userMessage, "Usuario creado.");
-  if (synced) {
-    userForm.reset();
-  }
+  persistState();
+  setStatusMessage(userMessage, "Usuario creado.", "success");
+  userForm.reset();
+  renderUsers();
 });
 
-clientForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const name = document.getElementById("client-name").value.trim();
-  const city = document.getElementById("client-city").value.trim();
+function initApp() {
+  sheetIdEl.textContent = CONFIG.sheetId;
+  const folderLink = document.createElement("a");
+  folderLink.href = folderUrl;
+  folderLink.textContent = CONFIG.driveFolderId;
+  folderLink.target = "_blank";
+  folderLink.rel = "noreferrer";
+  folderLink.className = "link";
+  driveFolderEl.append(folderLink);
 
-  if (!name || !city) {
-    setStatusMessage(clientMessage, "Complete todos los campos.", "error");
-    return;
-  }
-
-  state.clients.push({
-    id: `client_${crypto.randomUUID()}`,
-    name,
-    city,
-  });
-  const synced = await persistAndRefresh(clientMessage, "Cliente creado.");
-  if (synced) {
-    clientForm.reset();
-    renderOptions();
-  }
-});
-
-projectForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const clientId = projectClient.value;
-  const client = state.clients.find((item) => item.id === clientId);
-  const name = document.getElementById("project-name").value.trim();
-  const baseAmount = Number(document.getElementById("project-base").value);
-
-  if (!client) {
-    setStatusMessage(projectMessage, "Seleccione un cliente válido.", "error");
-    return;
-  }
-
-  state.projects.push({
-    id: `project_${crypto.randomUUID()}`,
-    clientId: client.id,
-    clientName: client.name,
-    city: client.city,
-    name,
-    baseAmount,
-  });
-  const synced = await persistAndRefresh(projectMessage, "Proyecto creado.");
-  if (synced) {
-    projectForm.reset();
-    renderOptions();
-    renderBalances();
-  }
-});
-
-async function initApp() {
   setStatusMessage(sheetStatusEl, getSheetStatusLabel());
-  await refreshStateFromSheet();
+  updateView();
 }
 
 initApp();
