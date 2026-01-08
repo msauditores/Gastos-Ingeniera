@@ -14,38 +14,48 @@
     <div class="app-shell">
       <div class="drawer-overlay" id="drawer-overlay" aria-hidden="true"></div>
       <aside class="drawer" id="drawer" aria-hidden="true">
-        <div class="drawer__header">
-          <img
-            src="https://drive.google.com/uc?export=view&id=1S9ph0kU_u1pwY7J5efqoFY5TMFx7AXRa"
-            alt="Logo Gastos Ingeniería"
-            class="drawer__logo"
-          />
-          <div>
-            <p class="drawer__title">Gastos Ingeniería</p>
-            <p class="drawer__subtitle" id="user-summary"></p>
+        <div class="drawer__content">
+          <div class="drawer__header">
+            <div class="drawer__brand">
+              <img
+                src="https://drive.google.com/uc?export=view&id=1S9ph0kU_u1pwY7J5efqoFY5TMFx7AXRa"
+                alt="Logo Gastos Ingeniería"
+                class="drawer__logo"
+              />
+              <div>
+                <p class="drawer__title">Gastos Ingeniería</p>
+                <p class="drawer__subtitle" id="user-summary"></p>
+              </div>
+            </div>
+            <button class="icon-button drawer__close" id="drawer-close" aria-label="Cerrar menú">
+              <span class="icon-button__icon">✕</span>
+            </button>
           </div>
-        </div>
-        <nav class="drawer__nav">
-          <button class="drawer__item is-active" data-view="caja">Clientes/Proyecto</button>
-          <button class="drawer__item" data-view="ingresos">Usuarios</button>
-          <button class="drawer__item">About</button>
-          <button class="drawer__item">Feedback</button>
-          <button class="drawer__item">Share</button>
-        </nav>
-        <div class="drawer__footer">
-          <button class="drawer__logout" id="logout-button">Log Out</button>
-          <div class="drawer__meta">
-            <div>
-              <span class="label">Sheet ID</span>
-              <p id="sheet-id"></p>
-            </div>
-            <div>
-              <span class="label">Carpeta Drive</span>
-              <p id="drive-folder"></p>
-            </div>
-            <div>
-              <span class="label">Estado</span>
-              <p id="sheet-status"></p>
+          <nav class="drawer__nav">
+            <p class="drawer__label">Secciones</p>
+            <button class="drawer__item is-active" data-view="caja">Clientes/Proyecto</button>
+            <button class="drawer__item" data-view="ingresos">Usuarios</button>
+            <div class="drawer__divider"></div>
+            <p class="drawer__label">Herramientas</p>
+            <button class="drawer__item">Reportes</button>
+            <button class="drawer__item">Feedback</button>
+            <button class="drawer__item">Compartir</button>
+          </nav>
+          <div class="drawer__footer">
+            <button class="drawer__logout" id="logout-button">Cerrar sesión</button>
+            <div class="drawer__meta">
+              <div>
+                <span class="label">Sheet ID</span>
+                <p id="sheet-id"></p>
+              </div>
+              <div>
+                <span class="label">Carpeta Drive</span>
+                <p id="drive-folder"></p>
+              </div>
+              <div>
+                <span class="label">Estado</span>
+                <p id="sheet-status"></p>
+              </div>
             </div>
           </div>
         </div>
@@ -53,10 +63,18 @@
 
       <div class="phone">
         <header class="app-bar">
-          <button class="icon-button" id="menu-toggle" aria-label="Abrir menú">
-            <span></span>
-            <span></span>
-            <span></span>
+          <button
+            class="icon-button icon-button--menu"
+            id="menu-toggle"
+            aria-label="Abrir menú"
+            aria-controls="drawer"
+            aria-expanded="false"
+          >
+            <span class="icon-button__bars" aria-hidden="true">
+              <span class="icon-button__bar"></span>
+              <span class="icon-button__bar"></span>
+              <span class="icon-button__bar"></span>
+            </span>
           </button>
           <div class="app-bar__branding">
             <img
