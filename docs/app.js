@@ -1,23 +1,20 @@
 const CONFIG = {
   sheetId: "1tLdiGfhlSR0jsXT89jk-dDGfhci-Y3IAiECoR2g5RCo",
   driveFolderId: "1Q7mcMtEQoccD5gfux4TXNi9zY9qnIiXf",
-  appsScriptUrl: "https://script.google.com/macros/s/AKfycbyLadJHX4HcnS6uDYP27btoPgFjqih8qLXgcV8okoaW_g7dtuL9rsRoSP3jsrT_UI_5SA/exec",
-  appsScriptToken: "Fondo-2026!X9k2$",
+  appsScriptUrl: "",
+  appsScriptToken: "",
 };
+
+// ✅ Define aquí quién es ADMIN (correos de Firebase Auth)
+const ADMIN_EMAILS = ["rodriguezwilly4@gmail.com"];
 
 const STORAGE_KEY = "gastos-ingenieria-state";
 
 const defaultState = {
   currentUser: null,
-  users: [
-    {
-      id: "u_admin",
-      name: "Administrador",
-      username: "admin",
-      password: "Sami123+",
-      role: "admin",
-    },
-  ],
+  // ✅ Ya no guardamos passwords en el front.
+  // Si quieres mantener un listado solo informativo, puedes dejarlo vacío.
+  users: [],
   clients: [],
   projects: [],
   expenses: [],
@@ -75,7 +72,7 @@ const expenseTable = document.getElementById("expense-table");
 const receiptInput = document.getElementById("expense-receipt");
 const receiptPreview = document.getElementById("receipt-preview");
 
-const userForm = document.getElementById("user-form");
+const userForm = document.getElementById("user-form"); // ahora está “deshabilitado” en el HTML
 const userMessage = document.getElementById("user-message");
 const userList = document.getElementById("user-list");
 const adminSection = document.getElementById("admin-section");
@@ -94,7 +91,7 @@ function loadState() {
     return {
       ...structuredClone(defaultState),
       ...parsed,
-      currentUser: null,
+      currentUser: null, // sesión se maneja por Firebase, no por localStorage
     };
   } catch (error) {
     console.error("Error leyendo el estado local", error);
@@ -107,19 +104,15 @@ function persistState() {
 }
 
 function setStatusMessage(target, message, variant) {
-  if (!target) {
-    return;
-  }
+  if (!target) return;
   target.textContent = message;
   target.classList.remove("is-error", "is-success", "is-loading");
-  if (variant) {
-    target.classList.add(`is-${variant}`);
-  }
+  if (variant) target.classList.add(`is-${variant}`);
 }
 
 function getSheetStatusLabel() {
   if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptToken) {
-    return "Modo local · Configura Apps Script para sincronizar";
+    return "Modo local · (Sin Google Sheets)";
   }
   return "Conectado a Google Sheets";
 }
@@ -149,7 +142,7 @@ function updateHeader(viewName) {
     users: {
       eyebrow: "Usuarios",
       title: "Administración de usuarios",
-      subtitle: "Define accesos y roles dentro del aplicativo.",
+      subtitle: "Gestión desde Firebase Authentication.",
     },
   };
   const config = headerMap[viewName] || headerMap.dashboard;
@@ -161,20 +154,14 @@ function updateHeader(viewName) {
 function setActiveView(viewName) {
   state.currentView = viewName;
   persistState();
-  views.forEach((view) => {
-    view.classList.toggle("is-active", view.dataset.view === viewName);
-  });
-  navButtons.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.view === viewName);
-  });
+  views.forEach((view) => view.classList.toggle("is-active", view.dataset.view === viewName));
+  navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.view === viewName));
   updateHeader(viewName);
 }
 
 function calculateProjectBalance(projectId) {
   const project = state.projects.find((item) => item.id === projectId);
-  if (!project) {
-    return 0;
-  }
+  if (!project) return 0;
   const spent = state.expenses
     .filter((expense) => expense.projectId === projectId)
     .reduce((total, expense) => total + expense.amount, 0);
@@ -182,9 +169,7 @@ function calculateProjectBalance(projectId) {
 }
 
 function renderSelect(selectEl, items, placeholder, getLabel, selectedId) {
-  if (!selectEl) {
-    return;
-  }
+  if (!selectEl) return;
   selectEl.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = "";
@@ -195,9 +180,7 @@ function renderSelect(selectEl, items, placeholder, getLabel, selectedId) {
     const option = document.createElement("option");
     option.value = item.id;
     option.textContent = getLabel ? getLabel(item) : item.name;
-    if (selectedId && option.value === selectedId) {
-      option.selected = true;
-    }
+    if (selectedId && option.value === selectedId) option.selected = true;
     selectEl.append(option);
   });
 }
@@ -327,33 +310,16 @@ function renderRecentExpenses() {
 }
 
 function renderUsers() {
-  userList.innerHTML = "";
-  if (!state.users.length) {
-    userList.innerHTML = '<p class="form__helper">No hay usuarios registrados.</p>';
-    return;
-  }
-  state.users.forEach((user) => {
-    const item = document.createElement("div");
-    item.className = "list-item";
-    item.innerHTML = `
-      <div class="list-item__header">
-        <span>${user.name}</span>
-        <span>${user.role}</span>
-      </div>
-      <div class="list-item__meta">Usuario: ${user.username}</div>
-    `;
-    userList.append(item);
-  });
+  // Ahora se gestiona en Firebase Console, dejamos solo mensaje informativo
+  if (!userList) return;
+  userList.innerHTML = '<p class="form__helper">Gestiona usuarios en Firebase Console → Authentication → Users.</p>';
 }
 
 function updateExpenseAvailability() {
   const projectId = expenseProject.value;
   const remaining = projectId ? calculateProjectBalance(projectId) : null;
-  if (remaining !== null) {
-    expenseRemaining.value = `$${remaining.toLocaleString()}`;
-  } else {
-    expenseRemaining.value = "";
-  }
+  if (remaining !== null) expenseRemaining.value = `$${remaining.toLocaleString()}`;
+  else expenseRemaining.value = "";
 
   if (remaining !== null && remaining <= 0) {
     expenseWarning.textContent = "La caja está en $0. No es posible registrar más egresos.";
@@ -371,10 +337,7 @@ function renderStats() {
   statClients.textContent = state.clients.length;
   statProjects.textContent = state.projects.length;
   const totalBase = state.projects.reduce((sum, project) => sum + project.baseAmount, 0);
-  const totalRemaining = state.projects.reduce(
-    (sum, project) => sum + calculateProjectBalance(project.id),
-    0,
-  );
+  const totalRemaining = state.projects.reduce((sum, project) => sum + calculateProjectBalance(project.id), 0);
   statBase.textContent = `$${totalBase.toLocaleString()}`;
   statRemaining.textContent = `$${totalRemaining.toLocaleString()}`;
 }
@@ -390,7 +353,7 @@ function renderOptions() {
     projects,
     "Seleccione un proyecto",
     (item) => `${item.code} · ${item.name}`,
-    expenseProject.value,
+    expenseProject.value
   );
 
   const selectedProject = state.projects.find((project) => project.id === expenseProject.value);
@@ -408,17 +371,14 @@ function updateView() {
   appSection.classList.toggle("hidden", !isLoggedIn);
   document.getElementById("user-card").classList.toggle("hidden", !isLoggedIn);
 
-  if (!isLoggedIn) {
-    return;
-  }
+  if (!isLoggedIn) return;
 
   userSummary.textContent = `${state.currentUser.name} · ${state.currentUser.role}`;
+
   const isAdmin = state.currentUser.role === "admin";
   usersNav.classList.toggle("hidden", !isAdmin);
   adminSection.classList.toggle("hidden", !isAdmin);
-  if (!isAdmin && state.currentView === "users") {
-    state.currentView = "dashboard";
-  }
+  if (!isAdmin && state.currentView === "users") state.currentView = "dashboard";
 
   renderOptions();
   renderStats();
@@ -433,9 +393,7 @@ function updateView() {
 }
 
 function renderSimpleSelect(selectEl, items, placeholder) {
-  if (!selectEl) {
-    return;
-  }
+  if (!selectEl) return;
   const selected = selectEl.value;
   selectEl.innerHTML = "";
   const empty = document.createElement("option");
@@ -447,9 +405,7 @@ function renderSimpleSelect(selectEl, items, placeholder) {
     const option = document.createElement("option");
     option.value = item;
     option.textContent = item;
-    if (selected && option.value === selected) {
-      option.selected = true;
-    }
+    if (selected && option.value === selected) option.selected = true;
     selectEl.append(option);
   });
 }
@@ -469,7 +425,7 @@ function normalizeCodeSegment(text) {
 function getNextProjectSequence(clientId, city) {
   const citySegment = normalizeCodeSegment(city);
   const matching = state.projects.filter(
-    (project) => project.clientId === clientId && normalizeCodeSegment(project.city) === citySegment,
+    (project) => project.clientId === clientId && normalizeCodeSegment(project.city) === citySegment
   );
   const maxSequence = matching.reduce((max, project) => {
     const match = project.code?.match(/(\d+)$/);
@@ -482,26 +438,18 @@ function getSuggestedProjectCode() {
   const clientId = projectClient.value;
   const client = state.clients.find((item) => item.id === clientId);
   const city = projectCityInput.value.trim();
-  if (!client || !city) {
-    return "";
-  }
+  if (!client || !city) return "";
   const clientSegment = normalizeCodeSegment(client.name);
   const citySegment = normalizeCodeSegment(city);
   const sequence = getNextProjectSequence(client.id, city);
-  if (!clientSegment || !citySegment) {
-    return "";
-  }
+  if (!clientSegment || !citySegment) return "";
   return `${clientSegment}-${citySegment}-${sequence}`;
 }
 
 function updateProjectCodeSuggestion() {
-  if (!projectCodeInput) {
-    return;
-  }
+  if (!projectCodeInput) return;
   const shouldUpdate = !projectCodeInput.value || projectCodeInput.dataset.auto === "true";
-  if (!shouldUpdate) {
-    return;
-  }
+  if (!shouldUpdate) return;
   const suggested = getSuggestedProjectCode();
   if (suggested) {
     projectCodeInput.value = suggested;
@@ -526,44 +474,37 @@ async function apiRequest(action, payload) {
   });
   const response = await fetch(CONFIG.appsScriptUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8",
-    },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body,
   });
 
   const result = await response.json().catch(() => null);
 
-  if (!response.ok) {
-    throw new Error(`Error en Apps Script: ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`Error en Apps Script: ${response.status}`);
   if (!result || result.ok === false) {
     const errorMessage = result?.error ? `Error en Apps Script: ${result.error}` : "Respuesta inválida.";
     throw new Error(errorMessage);
   }
-
   return result.data ?? result;
 }
 
 async function syncFromSheets() {
-  if (!isSyncEnabled()) {
-    return;
-  }
+  if (!isSyncEnabled()) return;
   setStatusMessage(sheetStatusEl, "Sincronizando con Google Sheets...", "loading");
   try {
     const data = await apiRequest("bootstrap");
     const resolveCollection = (incoming, fallback) =>
       Array.isArray(incoming) && incoming.length ? incoming : fallback;
+
     state = {
       ...state,
-      users: resolveCollection(data.users, state.users),
       clients: resolveCollection(data.clients, state.clients),
       projects: resolveCollection(data.projects, state.projects),
       expenses: resolveCollection(data.expenses, state.expenses),
       concepts: resolveCollection(data.concepts, state.concepts),
       supports: resolveCollection(data.supports, state.supports),
     };
+
     persistState();
     setStatusMessage(sheetStatusEl, "Datos actualizados desde Google Sheets.", "success");
     updateView();
@@ -597,35 +538,94 @@ function handleReceiptPreview(file) {
   receiptPreview.append(image, label);
 }
 
-loginForm.addEventListener("submit", (event) => {
+/* =========================
+   ✅ LOGIN Firebase Auth
+   ========================= */
+
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = document.getElementById("login-username").value.trim();
+
+  const email = document.getElementById("login-username").value.trim();
   const password = document.getElementById("login-password").value.trim();
-  const found = state.users.find((user) => user.username === username && user.password === password);
 
-  if (!found) {
+  try {
+    setStatusMessage(loginMessage, "Validando...", "loading");
+
+    if (!window.__fb?.auth) {
+      setStatusMessage(loginMessage, "Firebase no está inicializado (revisa firebaseConfig).", "error");
+      return;
+    }
+
+    const { auth, signInWithEmailAndPassword } = window.__fb;
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+
+    const userEmail = cred.user.email || email;
+    const isAdmin = ADMIN_EMAILS.includes(userEmail);
+
+    state.currentUser = {
+      id: cred.user.uid,
+      name: userEmail,
+      username: userEmail,
+      role: isAdmin ? "admin" : "empleado",
+    };
+
+    setStatusMessage(loginMessage, "", "");
+    loginForm.reset();
+    persistState();
+    updateView();
+  } catch (e) {
+    console.error(e);
     setStatusMessage(loginMessage, "Credenciales inválidas.", "error");
-    return;
   }
-
-  state.currentUser = { ...found };
-  setStatusMessage(loginMessage, "", "");
-  loginForm.reset();
-  persistState();
-  updateView();
 });
 
-logoutButton.addEventListener("click", () => {
+logoutButton.addEventListener("click", async () => {
+  try {
+    if (window.__fb?.auth) {
+      await window.__fb.signOut(window.__fb.auth);
+    }
+  } catch (e) {
+    console.error(e);
+  }
   state.currentUser = null;
   persistState();
   updateView();
 });
 
-navButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    if (button.classList.contains("hidden")) {
+// ✅ Mantener sesión si el navegador refresca
+function attachAuthListener() {
+  if (!window.__fb?.onAuthStateChanged || !window.__fb?.auth) return;
+
+  window.__fb.onAuthStateChanged(window.__fb.auth, (user) => {
+    if (!user) {
+      state.currentUser = null;
+      persistState();
+      updateView();
       return;
     }
+
+    const userEmail = user.email || "usuario";
+    const isAdmin = ADMIN_EMAILS.includes(userEmail);
+
+    state.currentUser = {
+      id: user.uid,
+      name: userEmail,
+      username: userEmail,
+      role: isAdmin ? "admin" : "empleado",
+    };
+
+    persistState();
+    updateView();
+  });
+}
+
+/* =========================
+   UI listeners existentes
+   ========================= */
+
+navButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (button.classList.contains("hidden")) return;
     setActiveView(button.dataset.view);
   });
 });
@@ -639,32 +639,22 @@ syncButton.addEventListener("click", () => {
   syncFromSheets();
 });
 
-expenseClient.addEventListener("change", () => {
-  renderOptions();
-});
+expenseClient.addEventListener("change", () => renderOptions());
+expenseProject.addEventListener("change", () => renderOptions());
 
-expenseProject.addEventListener("change", () => {
-  renderOptions();
-});
+projectClient.addEventListener("change", () => updateProjectCodeSuggestion());
+projectCityInput.addEventListener("input", () => updateProjectCodeSuggestion());
+projectCodeInput.addEventListener("input", () => markProjectCodeManual());
 
-projectClient.addEventListener("change", () => {
-  updateProjectCodeSuggestion();
-});
+receiptInput.addEventListener("change", (event) => handleReceiptPreview(event.target.files[0]));
 
-projectCityInput.addEventListener("input", () => {
-  updateProjectCodeSuggestion();
-});
-
-projectCodeInput.addEventListener("input", () => {
-  markProjectCodeManual();
-});
-
-receiptInput.addEventListener("change", (event) => {
-  handleReceiptPreview(event.target.files[0]);
-});
+/* =========================
+   Formularios de negocio
+   ========================= */
 
 expenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+
   const projectId = expenseProject.value;
   const remaining = calculateProjectBalance(projectId);
   if (remaining <= 0) {
@@ -734,37 +724,11 @@ expenseForm.addEventListener("submit", async (event) => {
   renderBalances();
   renderStats();
   updateExpenseAvailability();
-
-  if (isSyncEnabled()) {
-    try {
-      await apiRequest("appendExpense", {
-        id: newExpense.id,
-        fecha: newExpense.date,
-        categoría: newExpense.category,
-        "tipo soporte": newExpense.supportType,
-        descripción: newExpense.description,
-        valor: newExpense.amount,
-        clienteId: newExpense.clientId,
-        cliente: newExpense.clientName,
-        proyectoId: newExpense.projectId,
-        proyecto: newExpense.projectName,
-        ciudad: newExpense.city,
-        comprobanteNombre: newExpense.receiptName,
-        comprobanteUrl: newExpense.receiptUrl,
-      });
-    } catch (error) {
-      console.error("No fue posible sincronizar el egreso", error);
-      setStatusMessage(
-        expenseMessage,
-        "Egreso guardado localmente, pero no se pudo sincronizar con Google Sheets.",
-        "error",
-      );
-    }
-  }
 });
 
 clientForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+
   const name = document.getElementById("client-name").value.trim();
   const city = document.getElementById("client-city").value.trim();
   const contact = document.getElementById("client-contact").value.trim();
@@ -776,42 +740,20 @@ clientForm.addEventListener("submit", async (event) => {
 
   const clientCode = normalizeCodeSegment(name);
   const clientId = `client_${crypto.randomUUID()}`;
-  state.clients.push({
-    id: clientId,
-    code: clientCode,
-    name,
-    city,
-    contact,
-  });
+
+  state.clients.push({ id: clientId, code: clientCode, name, city, contact });
   persistState();
+
   setStatusMessage(clientMessage, "Cliente creado.", "success");
   clientForm.reset();
   renderClients();
   renderOptions();
   renderStats();
-
-  if (isSyncEnabled()) {
-    try {
-      await apiRequest("appendClient", {
-        id: clientId,
-        code: clientCode,
-        name,
-        city,
-        contact,
-      });
-    } catch (error) {
-      console.error("No fue posible sincronizar el cliente", error);
-      setStatusMessage(
-        clientMessage,
-        "Cliente guardado localmente, pero no se pudo sincronizar con Google Sheets.",
-        "error",
-      );
-    }
-  }
 });
 
 projectForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+
   const clientId = projectClient.value;
   const client = state.clients.find((item) => item.id === clientId);
   const code = projectCodeInput.value.trim() || getSuggestedProjectCode();
@@ -823,7 +765,6 @@ projectForm.addEventListener("submit", async (event) => {
     setStatusMessage(projectMessage, "Seleccione un cliente válido.", "error");
     return;
   }
-
   if (!code || !name || !city || !baseAmount) {
     setStatusMessage(projectMessage, "Complete todos los campos del proyecto.", "error");
     return;
@@ -839,6 +780,7 @@ projectForm.addEventListener("submit", async (event) => {
     city,
     baseAmount,
   });
+
   persistState();
   setStatusMessage(projectMessage, "Proyecto creado.", "success");
   projectForm.reset();
@@ -847,76 +789,11 @@ projectForm.addEventListener("submit", async (event) => {
   renderProjects();
   renderBalances();
   renderStats();
-
-  if (isSyncEnabled()) {
-    try {
-      await apiRequest("appendProject", {
-        id: projectId,
-        clientId: client.id,
-        clientName: client.name,
-        code,
-        name,
-        city,
-        baseAmount,
-      });
-    } catch (error) {
-      console.error("No fue posible sincronizar el proyecto", error);
-      setStatusMessage(
-        projectMessage,
-        "Proyecto guardado localmente, pero no se pudo sincronizar con Google Sheets.",
-        "error",
-      );
-    }
-  }
-});
-
-userForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const name = document.getElementById("user-name").value.trim();
-  const username = document.getElementById("user-username").value.trim();
-  const password = document.getElementById("user-password").value.trim();
-  const role = document.getElementById("user-role").value;
-
-  if (state.users.some((user) => user.username === username)) {
-    setStatusMessage(userMessage, "El usuario ya existe.", "error");
-    return;
-  }
-
-  const userId = `user_${crypto.randomUUID()}`;
-  state.users.push({
-    id: userId,
-    name,
-    username,
-    password,
-    role,
-  });
-  persistState();
-  setStatusMessage(userMessage, "Usuario creado.", "success");
-  userForm.reset();
-  renderUsers();
-
-  if (isSyncEnabled()) {
-    try {
-      await apiRequest("appendUser", {
-        id: userId,
-        name,
-        username,
-        password,
-        role,
-      });
-    } catch (error) {
-      console.error("No fue posible sincronizar el usuario", error);
-      setStatusMessage(
-        userMessage,
-        "Usuario guardado localmente, pero no se pudo sincronizar con Google Sheets.",
-        "error",
-      );
-    }
-  }
 });
 
 function initApp() {
   sheetIdEl.textContent = CONFIG.sheetId;
+
   const folderLink = document.createElement("a");
   folderLink.href = folderUrl;
   folderLink.textContent = CONFIG.driveFolderId;
@@ -925,11 +802,13 @@ function initApp() {
   folderLink.className = "link";
   driveFolderEl.append(folderLink);
 
-  if (projectCodeInput) {
-    projectCodeInput.dataset.auto = "true";
-  }
+  if (projectCodeInput) projectCodeInput.dataset.auto = "true";
 
   setStatusMessage(sheetStatusEl, getSheetStatusLabel());
+
+  // ✅ engancha el listener de Firebase (para recordar sesión)
+  attachAuthListener();
+
   updateView();
   syncFromSheets();
 }

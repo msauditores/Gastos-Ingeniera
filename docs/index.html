@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gastos Ingeniería</title>
+
     <link rel="stylesheet" href="styles.css" />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     />
   </head>
+
   <body>
     <div class="page">
       <aside class="sidebar" id="sidebar">
@@ -67,30 +69,29 @@
           </div>
         </header>
 
+        <!-- LOGIN -->
         <section class="login" id="login-section">
           <div class="login__card">
             <img src="LOGO.jpeg" alt="Logo" class="login__logo" />
             <h2>Ingreso al aplicativo</h2>
             <p>Usa tus credenciales para administrar clientes, proyectos y egresos.</p>
+
             <form id="login-form" class="form">
               <label>
-                Usuario
-                <input type="text" id="login-username" required />
+                Usuario (correo)
+                <input type="text" id="login-username" autocomplete="username" required />
               </label>
               <label>
                 Contraseña
-                <input type="password" id="login-password" required />
+                <input type="password" id="login-password" autocomplete="current-password" required />
               </label>
               <button type="submit" class="button">Entrar</button>
               <p class="form__helper" id="login-message"></p>
             </form>
-            <div class="login__hint">
-              <p><strong>Usuario inicial:</strong> admin</p>
-              <p><strong>Contraseña:</strong> Sami123+</p>
-            </div>
           </div>
         </section>
 
+        <!-- APP -->
         <section class="app hidden" id="app-section">
           <div class="view is-active" data-view="dashboard">
             <div class="stats">
@@ -268,41 +269,51 @@
             <div class="card-grid">
               <form id="user-form" class="form card">
                 <h3>Crear usuario</h3>
-                <label>
-                  Nombre
-                  <input type="text" id="user-name" required />
-                </label>
-                <label>
-                  Usuario
-                  <input type="text" id="user-username" required />
-                </label>
-                <label>
-                  Contraseña
-                  <input type="password" id="user-password" required />
-                </label>
-                <label>
-                  Rol
-                  <select id="user-role" required>
-                    <option value="admin">Administrador</option>
-                    <option value="empleado">Empleado</option>
-                  </select>
-                </label>
-                <button type="submit" class="button">Guardar usuario</button>
+                <p class="form__helper">
+                  Los usuarios ahora se crean en Firebase Console → Authentication → Users.
+                </p>
+                <button type="button" class="button button--ghost" disabled>Crear usuario</button>
                 <p class="form__helper" id="user-message"></p>
               </form>
 
               <div class="card">
                 <div class="card__header">
-                  <h3>Usuarios activos</h3>
-                  <p>Controla el acceso al aplicativo.</p>
+                  <h3>Usuarios</h3>
+                  <p>Administración en Firebase Authentication.</p>
                 </div>
-                <div id="user-list" class="list"></div>
+                <div id="user-list" class="list">
+                  <p class="form__helper">Gestiona usuarios desde Firebase Console.</p>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </main>
     </div>
+
+    <!-- Firebase Auth -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+      import {
+        getAuth,
+        signInWithEmailAndPassword,
+        onAuthStateChanged,
+        signOut,
+      } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+      // 🔴 PEGA aquí tu firebaseConfig (Firebase Console → Project settings → Your apps → Web)
+      const firebaseConfig = {
+        apiKey: "AIzaSyAOR0mDTR_MAULqNioSdgRH8IoDv_Lp4rI",
+        authDomain: "ingenieria-sas.firebaseapp.com",
+        projectId: "ingenieria-sas",
+        appId: "1:856625753506:web:68fbe9c28a79ee703756fb",
+      };
+
+      const fbApp = initializeApp(firebaseConfig);
+      const auth = getAuth(fbApp);
+
+      window.__fb = { auth, signInWithEmailAndPassword, onAuthStateChanged, signOut };
+    </script>
 
     <script src="app.js"></script>
   </body>
